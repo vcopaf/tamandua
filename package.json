@@ -4,6 +4,7 @@
   "packageManager": "pnpm@9.15.0",
   "scripts": {
     "build": "pnpm --filter @tamandua/core build",
+    "prepare": "husky",
     "lint": "biome check .",
     "typecheck": "pnpm --filter @tamandua/core typecheck",
     "test": "pnpm --filter @tamandua/core test"
@@ -11,6 +12,9 @@
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
     "@types/node": "^22.10.5",
+    "@commitlint/cli": "^19.6.1",
+    "@commitlint/config-conventional": "^19.5.0",
+    "husky": "^9.1.7",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
   }

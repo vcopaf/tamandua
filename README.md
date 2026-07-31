@@ -21,4 +21,6 @@ pnpm test
 pnpm build
 ```
 
+Los commits usan Conventional Commits, por ejemplo `feat(core): add domain contracts`. El hook local `commit-msg` rechaza mensajes que no cumplan el formato.
+
 El alcance del MVP y las decisiones técnicas están documentados en `docs/`.
