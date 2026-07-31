@@ -9,6 +9,7 @@ import {
   startSession,
 } from "@tamandua/core";
 import { createDatabase, createRepositories } from "@tamandua/persistence";
+import { loadScenario, runScenario } from "@tamandua/runner";
 import { startServer } from "@tamandua/service/server.js";
 
 const root = join(homedir(), ".tamandua");
@@ -96,6 +97,22 @@ async function main(args: string[]) {
       ),
     ]);
     return console.log(reportsDirectory);
+  }
+  if (args[0] === "run") {
+    const projectId = args[args.indexOf("--project") + 1];
+    const scenarioPath = args[args.indexOf("--scenario") + 1];
+    if (!projectId || !scenarioPath)
+      throw new Error(
+        "Usage: tamandua run --project <id> --scenario <file.yml>",
+      );
+    const project = await repositories.projects.findById(projectId);
+    if (!project) throw new Error("Project not found");
+    const scenarioFile = await loadScenario(scenarioPath);
+    const execution = await runScenario(
+      { ...scenarioFile, id: scenarioPath, projectId },
+      { baseUrl: project.baseUrl, outputDirectory: join(root, "runs") },
+    );
+    return console.log(JSON.stringify(execution, null, 2));
   }
   throw new Error("Unknown command. Use project, session, report or start.");
 }

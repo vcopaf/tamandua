@@ -1,0 +1,100 @@
+import { mkdir } from "node:fs/promises";
+import { createId } from "@tamandua/core";
+import type { Scenario } from "@tamandua/core";
+import { type Browser, type Page, chromium } from "playwright";
+
+export type ExecutionResult = {
+  id: string;
+  status: "passed" | "failed";
+  startedAt: string;
+  finishedAt: string;
+  error?: string;
+  screenshotPath?: string;
+  tracePath?: string;
+  steps: Array<{
+    position: number;
+    action: string;
+    status: "passed" | "failed";
+    error?: string;
+  }>;
+};
+
+async function performStep(page: Page, step: Scenario["steps"][number]) {
+  if (step.action === "goto") return page.goto(step.value ?? step.target ?? "");
+  if (step.action === "fill")
+    return page.locator(step.target ?? "").fill(step.value ?? "");
+  if (step.action === "click") return page.locator(step.target ?? "").click();
+  if (step.action === "wait")
+    return page.waitForTimeout(Number(step.value ?? 1000));
+}
+
+async function verifyCheck(page: Page, check: Scenario["checks"][number]) {
+  if (check.type === "text-visible")
+    return page.getByText(check.value ?? "").isVisible();
+  if (check.type === "url") return page.url() === check.value;
+  if (check.type === "no-console-errors" || check.type === "no-server-errors")
+    return true;
+  return false;
+}
+
+export async function runScenario(
+  scenario: Scenario,
+  options: { baseUrl: string; outputDirectory: string; browser?: Browser },
+): Promise<ExecutionResult> {
+  const startedAt = new Date().toISOString();
+  const executionId = createId();
+  const browser =
+    options.browser ?? (await chromium.launch({ headless: true }));
+  const ownsBrowser = !options.browser;
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await mkdir(options.outputDirectory, { recursive: true });
+  const tracePath = `${options.outputDirectory}/${executionId}.zip`;
+  const screenshotPath = `${options.outputDirectory}/${executionId}.png`;
+  await context.tracing.start({ screenshots: true, snapshots: true });
+  const steps: ExecutionResult["steps"] = [];
+  try {
+    await page.goto(new URL(scenario.startUrl, options.baseUrl).toString());
+    for (const [index, step] of scenario.steps.entries()) {
+      try {
+        await performStep(page, step);
+        steps.push({ position: index, action: step.action, status: "passed" });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Step failed";
+        steps.push({
+          position: index,
+          action: step.action,
+          status: "failed",
+          error: message,
+        });
+        throw new Error(`Step ${index + 1} failed: ${message}`);
+      }
+    }
+    for (const check of scenario.checks)
+      if (!(await verifyCheck(page, check)))
+        throw new Error(`Check failed: ${check.type}`);
+    return {
+      id: executionId,
+      status: "passed",
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      steps,
+    };
+  } catch (error) {
+    await page.screenshot({ path: screenshotPath, fullPage: true });
+    await context.tracing.stop({ path: tracePath });
+    return {
+      id: executionId,
+      status: "failed",
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      error: error instanceof Error ? error.message : "Execution failed",
+      screenshotPath,
+      tracePath,
+      steps,
+    };
+  } finally {
+    await context.close();
+    if (ownsBrowser) await browser.close();
+  }
+}
