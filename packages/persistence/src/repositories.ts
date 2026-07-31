@@ -13,6 +13,14 @@ export function createRepositories(handle: DatabaseHandle) {
   const { db } = handle;
   return {
     projects: {
+      async list() {
+        return (await db.select().from(projects)).map((row) =>
+          projectSchema.parse({
+            ...row,
+            description: row.description ?? undefined,
+          }),
+        );
+      },
       async save(project: Project) {
         const value = projectSchema.parse(project);
         await db
@@ -35,6 +43,11 @@ export function createRepositories(handle: DatabaseHandle) {
       },
     },
     sessions: {
+      async list() {
+        return (await db.select().from(sessions)).map((row) =>
+          sessionSchema.parse(row),
+        );
+      },
       async save(session: Session) {
         const value = sessionSchema.parse(session);
         await db
@@ -50,8 +63,29 @@ export function createRepositories(handle: DatabaseHandle) {
         const row = rows[0];
         return row ? sessionSchema.parse(row) : undefined;
       },
+      async update(session: Session) {
+        const value = sessionSchema.parse(session);
+        await db.update(sessions).set(value).where(eq(sessions.id, value.id));
+        return value;
+      },
     },
     findings: {
+      async listBySession(sessionId: string) {
+        return (
+          await db
+            .select()
+            .from(findings)
+            .where(eq(findings.sessionId, sessionId))
+        ).map((row) =>
+          findingSchema.parse({
+            ...row,
+            ruleId: row.ruleId ?? undefined,
+            actualResult: row.actualResult ?? undefined,
+            expectedResult: row.expectedResult ?? undefined,
+            element: row.element ?? undefined,
+          }),
+        );
+      },
       async save(finding: Finding) {
         const value = findingSchema.parse(finding);
         await db.insert(findings).values({

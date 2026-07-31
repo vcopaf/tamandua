@@ -1,18 +1,17 @@
 {
-  "name": "@tamandua/persistence",
+  "name": "@tamandua/cli",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "bin": { "tamandua": "dist/index.js" },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@tamandua/core": "workspace:*",
-    "@libsql/client": "^0.14.0",
-    "drizzle-orm": "^0.38.3"
+    "@tamandua/persistence": "workspace:*",
+    "@tamandua/service": "workspace:*"
   }
 }
