@@ -34,4 +34,4 @@ node apps/service/dist/index.js
 
 El servicio escucha únicamente en `http://127.0.0.1:4317`. La CLI se construye con `pnpm --filter @tamandua/cli build` y permite `project create`, `project list`, `session start`, `session list`, `report generate` y `start`.
 
-La extensión se construye con `pnpm --filter @tamandua/extension build` y se carga desde `extension/.output/chrome-mv3` en Chromium mediante `chrome://extensions`.
+La extensión se construye con `pnpm --filter @tamandua/extension build` y se carga desde `extension/.output/chrome-mv3` en Chromium mediante `chrome://extensions`. `tamandua report generate <session-id>` produce `report.json`, `report.md` y `report.html`.

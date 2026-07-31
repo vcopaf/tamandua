@@ -1,7 +1,13 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { createProject, startSession } from "@tamandua/core";
+import {
+  createProject,
+  renderHtmlReport,
+  renderJsonReport,
+  renderMarkdownReport,
+  startSession,
+} from "@tamandua/core";
 import { createDatabase, createRepositories } from "@tamandua/persistence";
 import { startServer } from "@tamandua/service/server.js";
 
@@ -67,14 +73,29 @@ async function main(args: string[]) {
     if (!sessionId) throw new Error("Missing session id");
     const session = await repositories.sessions.findById(sessionId);
     if (!session) throw new Error("Session not found");
+    const project = await repositories.projects.findById(session.projectId);
+    if (!project) throw new Error("Project not found");
     const findings = await repositories.findings.listBySession(sessionId);
     await mkdir(join(root, "sessions", sessionId, "reports"), {
       recursive: true,
     });
-    const report = { session, findings };
-    const output = join(root, "sessions", sessionId, "reports", "report.json");
-    await writeFile(output, JSON.stringify(report, null, 2));
-    return console.log(output);
+    const report = { project, session, findings };
+    const reportsDirectory = join(root, "sessions", sessionId, "reports");
+    await Promise.all([
+      writeFile(
+        join(reportsDirectory, "report.json"),
+        renderJsonReport(report),
+      ),
+      writeFile(
+        join(reportsDirectory, "report.md"),
+        renderMarkdownReport(report),
+      ),
+      writeFile(
+        join(reportsDirectory, "report.html"),
+        renderHtmlReport(report),
+      ),
+    ]);
+    return console.log(reportsDirectory);
   }
   throw new Error("Unknown command. Use project, session, report or start.");
 }
