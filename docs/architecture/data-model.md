@@ -10,4 +10,4 @@ Relaciones previstas:
 - Una ejecución pertenece a una sesión y registra pasos y resultados.
 - Un resultado de regla puede originar un hallazgo candidato.
 
-Los contratos TypeScript y Zod se implementarán en la Fase 1; este documento evita acoplar el dominio a SQLite.
+Los contratos TypeScript y Zod viven en `packages/core/src`. Los esquemas validan datos en los límites externos y sus tipos inferidos son la fuente compartida para las aplicaciones. El dominio continúa sin acoplamiento a SQLite.
