@@ -5,7 +5,8 @@
       "**/dist/**",
       "**/coverage/**",
       "extension/.output/**",
-      "extension/.wxt/**"
+      "extension/.wxt/**",
+      "release/**"
     ]
   },
   "formatter": {

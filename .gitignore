@@ -6,3 +6,4 @@ coverage/
 .tamandua/
 extension/.output/
 extension/.wxt/
+release/
