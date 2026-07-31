@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="es">
+  <head><meta charset="utf-8"><title>Demo Tamanduá</title></head>
+  <body>
+    <main>
+      <h1>registro demo</h1>
+      <form>
+        <label for="name">Nombre</label>
+        <input id="name" data-testid="nombre" name="name">
+        <input data-testid="correo" placeholder="correo electrónico" type="text">
+        <button data-testid="guardar" type="submit">Guardar</button>
+      </form>
+      <p id="message" hidden>Registro realizado correctamente</p>
+    </main>
+    <script>document.querySelector("form").addEventListener("submit", event => { event.preventDefault(); document.querySelector("#message").hidden = false; });</script>
+  </body>
+</html>

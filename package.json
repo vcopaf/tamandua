@@ -12,6 +12,7 @@
     "lint": "biome check .",
     "format": "biome format --write .",
     "format:check": "biome format .",
+    "test:e2e": "pnpm --filter @tamandua/service test && pnpm --filter @tamandua/runner test",
     "typecheck": "pnpm --filter @tamandua/core --filter @tamandua/persistence --filter @tamandua/service --filter @tamandua/cli --filter @tamandua/runner --filter @tamandua/extension typecheck",
     "test": "pnpm --filter @tamandua/core --filter @tamandua/persistence --filter @tamandua/service --filter @tamandua/cli --filter @tamandua/runner --filter @tamandua/extension test"
   },
