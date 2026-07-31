@@ -7,11 +7,16 @@ import {
 } from "node:http";
 import { dirname, join } from "node:path";
 import {
+  DomainError,
   analyzeSnapshot,
+  createFinding,
   createId,
   createProject,
+  elementSnapshotSchema,
   pageSnapshotSchema,
   startSession,
+  updateFinding,
+  updateFindingStatus,
 } from "@tamandua/core";
 import type { Evidence } from "@tamandua/core";
 import { createDatabase } from "@tamandua/persistence";
@@ -40,6 +45,41 @@ const evidenceInput = z.object({
   browser: z.string().min(1),
   resolution: z.string().min(1),
   selector: z.string().optional(),
+});
+const findingCreateInput = z.object({
+  sessionId: z.string().min(1),
+  origin: z.enum(["manual", "automatic", "rule", "user"]),
+  ruleId: z.string().optional(),
+  category: z.enum([
+    "form",
+    "content",
+    "accessibility",
+    "technical",
+    "functional",
+    "other",
+  ]),
+  title: z.string().min(1),
+  description: z.string().min(1),
+  actualResult: z.string().optional(),
+  expectedResult: z.string().optional(),
+  severity: z.enum(["blocker", "critical", "major", "minor", "trivial"]),
+  priority: z.enum(["high", "medium", "low"]),
+  confidence: z.number().min(0).max(1),
+  url: z.string().url(),
+  element: elementSnapshotSchema.optional(),
+});
+const findingPatchInput = z.object({
+  status: z
+    .enum(["confirmed", "discarded", "duplicate", "resolved"])
+    .optional(),
+  title: z.string().min(1).optional(),
+  description: z.string().min(1).optional(),
+  actualResult: z.string().optional(),
+  expectedResult: z.string().optional(),
+  severity: z
+    .enum(["blocker", "critical", "major", "minor", "trivial"])
+    .optional(),
+  priority: z.enum(["high", "medium", "low"]).optional(),
 });
 
 export class ServiceError extends Error {
@@ -103,6 +143,49 @@ export async function createApp(
             pageSnapshotSchema.parse(await body(request)),
           ),
         });
+      if (request.method === "POST" && url.pathname === "/findings") {
+        const input = findingCreateInput.parse(await body(request));
+        if (!(await repositories.sessions.findById(input.sessionId)))
+          throw new ServiceError(404, "Session not found", "SESSION_NOT_FOUND");
+        return send(
+          response,
+          201,
+          await repositories.findings.save(createFinding(input)),
+        );
+      }
+      const findingMatch = url.pathname.match(/^\/findings\/([^/]+)$/);
+      if (
+        findingMatch &&
+        (request.method === "GET" || request.method === "PATCH")
+      ) {
+        const findingId = findingMatch[1];
+        if (!findingId)
+          throw new ServiceError(400, "Invalid finding id", "INVALID_ID");
+        const finding = await repositories.findings.findById(findingId);
+        if (!finding)
+          throw new ServiceError(404, "Finding not found", "FINDING_NOT_FOUND");
+        if (request.method === "GET") return send(response, 200, finding);
+        const { status, ...patch } = findingPatchInput.parse(
+          await body(request),
+        );
+        const fields = {
+          ...(patch.title === undefined ? {} : { title: patch.title }),
+          ...(patch.description === undefined
+            ? {}
+            : { description: patch.description }),
+          ...(patch.actualResult === undefined
+            ? {}
+            : { actualResult: patch.actualResult }),
+          ...(patch.expectedResult === undefined
+            ? {}
+            : { expectedResult: patch.expectedResult }),
+          ...(patch.severity === undefined ? {} : { severity: patch.severity }),
+          ...(patch.priority === undefined ? {} : { priority: patch.priority }),
+        };
+        const edited = updateFinding(finding, fields);
+        const changed = status ? updateFindingStatus(edited, status) : edited;
+        return send(response, 200, await repositories.findings.update(changed));
+      }
       if (request.method === "POST" && url.pathname === "/evidence") {
         const input = evidenceInput.parse(await body(request));
         const handle = await repositories.findings.findById(input.findingId);
@@ -172,6 +255,10 @@ export async function createApp(
       }
       throw new ServiceError(404, "Route not found", "NOT_FOUND");
     } catch (error) {
+      if (error instanceof DomainError)
+        return send(response, 409, {
+          error: { code: "INVALID_STATE", message: error.message },
+        });
       if (error instanceof z.ZodError)
         return send(response, 400, {
           error: {

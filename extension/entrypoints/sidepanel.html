@@ -12,6 +12,11 @@
     <button id="analyze">Analizar pantalla</button>
     <button id="select">Seleccionar elemento</button>
     <button id="capture">Capturar evidencia</button>
+    <h2>Hallazgos</h2>
+    <select id="finding-filter"><option value="all">Todos</option><option value="candidate">Candidatos</option><option value="confirmed">Confirmados</option><option value="discarded">Descartados</option><option value="resolved">Resueltos</option></select>
+    <button id="refresh-findings">Cargar hallazgos</button>
+    <button id="save-candidates">Registrar candidatos del análisis</button>
+    <div id="findings"></div>
     <pre id="result"></pre>
     <script type="module" src="./sidepanel/main.ts"></script>
   </body>

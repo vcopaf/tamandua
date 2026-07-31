@@ -5,7 +5,14 @@ const result = document.querySelector<HTMLPreElement>("#result");
 const analyze = document.querySelector<HTMLButtonElement>("#analyze");
 const select = document.querySelector<HTMLButtonElement>("#select");
 const capture = document.querySelector<HTMLButtonElement>("#capture");
+const filter = document.querySelector<HTMLSelectElement>("#finding-filter");
+const findingsView = document.querySelector<HTMLDivElement>("#findings");
+const refreshFindings =
+  document.querySelector<HTMLButtonElement>("#refresh-findings");
+const saveCandidates =
+  document.querySelector<HTMLButtonElement>("#save-candidates");
 let selectedElement: { selector?: string } | undefined;
+let lastCandidates: Array<Record<string, unknown>> = [];
 
 async function checkService() {
   const response = await browser.runtime.sendMessage({
@@ -36,8 +43,77 @@ analyze?.addEventListener("click", async () => {
   })
     .then((response) => response.json() as Promise<unknown>)
     .catch(() => ({ findings: [] }));
+  if (
+    analysis &&
+    typeof analysis === "object" &&
+    "findings" in analysis &&
+    Array.isArray(analysis.findings)
+  )
+    lastCandidates = analysis.findings as Array<Record<string, unknown>>;
   if (result)
     result.textContent = JSON.stringify({ snapshot, analysis }, null, 2);
+});
+
+function renderFindings(items: Array<Record<string, unknown>>) {
+  if (!findingsView) return;
+  findingsView.replaceChildren(
+    ...items.map((finding) => {
+      const item = document.createElement("article");
+      const label = document.createElement("span");
+      label.textContent = `${String(finding.title ?? "Hallazgo")} [${String(finding.status ?? "candidate")}]`;
+      item.append(label);
+      if (typeof finding.id === "string") {
+        for (const [action, statusValue] of [
+          ["Confirmar", "confirmed"],
+          ["Descartar", "discarded"],
+        ] as const) {
+          const button = document.createElement("button");
+          button.textContent = action;
+          button.addEventListener("click", async () => {
+            await fetch(
+              `http://127.0.0.1:4317/findings/${encodeURIComponent(finding.id as string)}`,
+              {
+                method: "PATCH",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ status: statusValue }),
+              },
+            );
+            if (status) status.textContent = `Hallazgo ${statusValue}`;
+          });
+          item.append(button);
+        }
+      }
+      return item;
+    }),
+  );
+}
+
+refreshFindings?.addEventListener("click", async () => {
+  const sessionId = window.prompt("ID de la sesión");
+  if (!sessionId) return;
+  const response = await fetch(
+    `http://127.0.0.1:4317/sessions/${encodeURIComponent(sessionId)}/findings`,
+  );
+  const findings = (await response.json()) as Array<Record<string, unknown>>;
+  renderFindings(
+    filter?.value && filter.value !== "all"
+      ? findings.filter((finding) => finding.status === filter.value)
+      : findings,
+  );
+});
+
+filter?.addEventListener("change", () => refreshFindings?.click());
+
+saveCandidates?.addEventListener("click", async () => {
+  const sessionId = window.prompt("ID de la sesión activa");
+  if (!sessionId) return;
+  for (const candidate of lastCandidates)
+    await fetch("http://127.0.0.1:4317/findings", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...candidate, sessionId, origin: "rule" }),
+    });
+  if (status) status.textContent = "Candidatos registrados";
 });
 
 select?.addEventListener("click", async () => {

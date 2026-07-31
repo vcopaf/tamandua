@@ -114,6 +114,21 @@ export function createRepositories(handle: DatabaseHandle) {
             })
           : undefined;
       },
+      async update(finding: Finding) {
+        const value = findingSchema.parse(finding);
+        await db
+          .update(findings)
+          .set({
+            ...value,
+            ruleId: value.ruleId ?? null,
+            actualResult: value.actualResult ?? null,
+            expectedResult: value.expectedResult ?? null,
+            element: value.element ?? null,
+            evidenceIds: value.evidenceIds,
+          })
+          .where(eq(findings.id, value.id));
+        return value;
+      },
     },
     evidence: {
       async save(value: Evidence) {
