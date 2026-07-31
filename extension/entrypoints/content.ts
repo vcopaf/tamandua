@@ -14,6 +14,8 @@ type ElementSnapshot = {
   height: number;
   x: number;
   y: number;
+  visible: boolean;
+  inViewport: boolean;
 };
 
 function selectorFor(element: Element): string {
@@ -58,6 +60,18 @@ function snapshotElement(element: Element): ElementSnapshot {
   const role =
     htmlElement.getAttribute("role") ||
     (element instanceof HTMLButtonElement ? "button" : undefined);
+  const style = window.getComputedStyle(htmlElement);
+  const visible =
+    style.display !== "none" &&
+    style.visibility !== "hidden" &&
+    style.opacity !== "0" &&
+    rect.width > 0 &&
+    rect.height > 0;
+  const inViewport =
+    rect.bottom > 0 &&
+    rect.right > 0 &&
+    rect.top < window.innerHeight &&
+    rect.left < window.innerWidth;
   return {
     tagName: element.tagName.toLowerCase(),
     visibleText: (
@@ -86,7 +100,32 @@ function snapshotElement(element: Element): ElementSnapshot {
     height: Math.round(rect.height),
     x: Math.round(rect.x),
     y: Math.round(rect.y),
+    visible,
+    inViewport,
   };
+}
+
+function isFrameworkNoise(text: string): boolean {
+  return /self\.__next_f|webpackJsonp|__react|react\.development|ng-version|vue-devtools|light_mode|expand_more/i.test(
+    text,
+  );
+}
+
+function visibleTextBlocks(): string[] {
+  return [...document.querySelectorAll("body *")]
+    .filter((element) => element.children.length === 0)
+    .map((element) => ({ element, text: element.textContent?.trim() ?? "" }))
+    .filter(({ element, text }) => {
+      const snapshot = snapshotElement(element);
+      return (
+        Boolean(text) &&
+        !isFrameworkNoise(text) &&
+        snapshot.visible &&
+        snapshot.inViewport
+      );
+    })
+    .map(({ text }) => text)
+    .slice(0, 200);
 }
 
 function pageSnapshot() {
@@ -94,27 +133,31 @@ function pageSnapshot() {
     url: window.location.href,
     title: document.title,
     headings: [...document.querySelectorAll("h1, h2, h3")]
-      .map((element) => element.textContent?.trim())
-      .filter(Boolean),
-    texts: [...document.querySelectorAll("body *")]
-      .filter(
-        (element) =>
-          element.children.length === 0 && Boolean(element.textContent?.trim()),
-      )
-      .map((element) => element.textContent?.trim())
-      .filter(Boolean)
-      .slice(0, 200),
+      .map((element) => ({ element, text: element.textContent?.trim() ?? "" }))
+      .filter(({ element, text }) => {
+        const snapshot = snapshotElement(element);
+        return (
+          Boolean(text) &&
+          !isFrameworkNoise(text) &&
+          snapshot.visible &&
+          snapshot.inViewport
+        );
+      })
+      .map(({ text }) => text),
+    texts: visibleTextBlocks(),
     forms: [...document.forms].map((form) => ({
       selector: selectorFor(form),
       controls: form.querySelectorAll("input, select, textarea, button").length,
     })),
-    controls: [
-      ...document.querySelectorAll("input, select, textarea, button"),
-    ].map(snapshotElement),
-    images: [...document.images].map((image) => ({
-      element: snapshotElement(image),
-      alt: image.alt,
-    })),
+    controls: [...document.querySelectorAll("input, select, textarea, button")]
+      .map(snapshotElement)
+      .filter((element) => element.visible),
+    images: [...document.images]
+      .map((image) => ({
+        element: snapshotElement(image),
+        alt: image.alt,
+      }))
+      .filter((image) => image.element.visible),
   };
 }
 
@@ -148,8 +191,22 @@ export default defineContentScript({
         element: selected,
       });
     };
-    browser.runtime.onMessage.addListener((message: ExtensionMessage) => {
-      if (message.type === "TAMANDUA_ANALYZE_PAGE") return pageSnapshot();
+    browser.runtime.onMessage.addListener(async (message: ExtensionMessage) => {
+      if (message.type === "TAMANDUA_ANALYZE_PAGE") {
+        try {
+          return pageSnapshot();
+        } catch {
+          return {
+            url: window.location.href,
+            title: document.title,
+            headings: [],
+            texts: [],
+            forms: [],
+            controls: [],
+            images: [],
+          };
+        }
+      }
       if (message.type === "TAMANDUA_START_SELECTOR") {
         selecting = true;
         document.addEventListener("mousemove", onMove, true);

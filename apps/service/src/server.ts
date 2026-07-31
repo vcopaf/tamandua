@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import {
   type IncomingMessage,
@@ -110,6 +111,9 @@ async function body(request: IncomingMessage) {
 function send(response: ServerResponse, status: number, payload: unknown) {
   response.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
+    "access-control-allow-origin": "*",
+    "access-control-allow-methods": "GET,POST,PATCH,OPTIONS",
+    "access-control-allow-headers": "content-type",
   });
   response.end(JSON.stringify(payload));
 }
@@ -119,8 +123,23 @@ export async function createApp(
 ) {
   const repositories = createRepositories(database ?? (await createDatabase()));
   return createServer(async (request, response) => {
+    const requestId = randomUUID();
+    const startedAt = performance.now();
+    response.once("finish", () => {
+      console.info(
+        JSON.stringify({
+          event: "http_request",
+          requestId,
+          method: request.method,
+          path: new URL(request.url ?? "/", "http://127.0.0.1").pathname,
+          status: response.statusCode,
+          durationMs: Math.round(performance.now() - startedAt),
+        }),
+      );
+    });
     try {
       const url = new URL(request.url ?? "/", "http://127.0.0.1");
+      if (request.method === "OPTIONS") return send(response, 204, null);
       if (request.method === "GET" && url.pathname === "/health")
         return send(response, 200, { status: "ok", service: "tamandua" });
       if (request.method === "GET" && url.pathname === "/projects")

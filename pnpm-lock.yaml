@@ -74,6 +74,9 @@ importers:
 
   extension:
     dependencies:
+      '@tamandua/core':
+        specifier: workspace:*
+        version: link:../packages/core
       wxt:
         specifier: 0.21.2
         version: 0.21.2(esbuild@0.27.7)(rolldown@1.2.1)(rollup@4.62.3)(typescript@5.9.3)(vite@8.2.0(@types/node@22.20.1)(esbuild@0.27.7)(jiti@2.6.1)(yaml@2.9.0))

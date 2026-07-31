@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "build": "wxt build",
+    "build:firefox": "wxt --config wxt.config.firefox.ts build --browser firefox",
     "dev": "wxt dev",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },
-  "dependencies": { "wxt": "0.21.2" },
+  "dependencies": { "@tamandua/core": "workspace:*", "wxt": "0.21.2" },
   "devDependencies": { "@types/chrome": "^0.0.287", "typescript": "^5.7.2" }
 }

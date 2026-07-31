@@ -41,6 +41,16 @@ node apps/cli/dist/index.js run --project <project-id> --scenario demo/registro-
 
 Los fallos generan screenshot y trace bajo `~/.tamandua/runs/`.
 
+## Logs
+
+El servicio escribe una línea JSON por cada solicitud, por ejemplo:
+
+```json
+{"event":"http_request","requestId":"...","method":"POST","path":"/sessions","status":201,"durationMs":4}
+```
+
+Los logs no incluyen cuerpos de solicitudes, contraseñas, cookies ni encabezados de autorización.
+
 ## Empaquetado
 
 ```bash

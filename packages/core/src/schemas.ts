@@ -54,6 +54,8 @@ export const elementSnapshotSchema = z.object({
   height: z.number().nonnegative().optional(),
   x: z.number().optional(),
   y: z.number().optional(),
+  visible: z.boolean().optional(),
+  inViewport: z.boolean().optional(),
 });
 export type ElementSnapshot = z.infer<typeof elementSnapshotSchema>;
 

@@ -4,9 +4,9 @@ export default defineConfig({
   manifest: {
     name: "Tamanduá QA",
     description: "Revisión manual asistida por Tamanduá",
-    permissions: ["sidePanel", "activeTab", "tabs", "storage"],
+    permissions: ["activeTab", "tabs", "storage"],
     host_permissions: ["http://127.0.0.1:4317/*"],
-    action: {},
+    sidebar_action: { default_panel: "sidepanel.html" },
     browser_specific_settings: {
       gecko: {
         id: "tamandua@local",

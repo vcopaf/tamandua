@@ -30,6 +30,8 @@ El servicio escucha en `127.0.0.1:4317` y guarda datos en `~/.tamandua/`.
 3. Seleccionar Load unpacked.
 4. Elegir `extension/.output/chrome-mv3`.
 
+Para Firefox, ejecutar `pnpm --filter @tamandua/extension build:firefox` y cargar el `manifest.json` de `extension/.output/firefox-mv3` desde `about:debugging#/runtime/this-firefox`.
+
 ## Demo Playwright
 
 Servir la demo desde la raíz:

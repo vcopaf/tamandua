@@ -1,7 +1,9 @@
 import type { ExtensionMessage } from "../utils/messages.js";
 
 export default defineBackground(() => {
-  browser.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+  if ("sidePanel" in browser) {
+    void browser.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+  }
 
   browser.runtime.onMessage.addListener((message: ExtensionMessage) => {
     if (message.type !== "TAMANDUA_HEALTH") return;
