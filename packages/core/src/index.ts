@@ -6,3 +6,4 @@ export * from "./identifiers.js";
 export * from "./rules.js";
 export * from "./reports.js";
 export * from "./schemas.js";
+export * from "./spelling.js";
