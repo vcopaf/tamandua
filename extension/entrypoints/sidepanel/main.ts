@@ -11,8 +11,35 @@ const refreshFindings =
   document.querySelector<HTMLButtonElement>("#refresh-findings");
 const saveCandidates =
   document.querySelector<HTMLButtonElement>("#save-candidates");
+const projectSelect = document.querySelector<HTMLSelectElement>("#project");
+const startSessionButton =
+  document.querySelector<HTMLButtonElement>("#start-session");
+const closeSessionButton =
+  document.querySelector<HTMLButtonElement>("#close-session");
+const sessionView = document.querySelector<HTMLParagraphElement>("#session");
 let selectedElement: { selector?: string } | undefined;
 let lastCandidates: Array<Record<string, unknown>> = [];
+let selectedFindingId: string | undefined;
+
+function setStatus(message: string) {
+  if (status) status.textContent = message;
+}
+
+async function getActiveSession() {
+  return (await browser.storage.local.get("activeSession")).activeSession as
+    | { id: string; projectId: string }
+    | undefined;
+}
+
+async function loadProjects() {
+  const projects = (await fetch("http://127.0.0.1:4317/projects")
+    .then((response) => response.json())
+    .catch(() => [])) as Array<{ id: string; name: string }>;
+  projectSelect?.replaceChildren(
+    new Option("Selecciona un proyecto", ""),
+    ...projects.map((project) => new Option(project.name, project.id)),
+  );
+}
 
 async function checkService() {
   const response = await browser.runtime.sendMessage({
@@ -63,6 +90,10 @@ function renderFindings(items: Array<Record<string, unknown>>) {
       label.textContent = `${String(finding.title ?? "Hallazgo")} [${String(finding.status ?? "candidate")}]`;
       item.append(label);
       if (typeof finding.id === "string") {
+        item.addEventListener("click", () => {
+          selectedFindingId = finding.id as string;
+          setStatus("Hallazgo seleccionado para evidencia");
+        });
         for (const [action, statusValue] of [
           ["Confirmar", "confirmed"],
           ["Descartar", "discarded"],
@@ -89,8 +120,8 @@ function renderFindings(items: Array<Record<string, unknown>>) {
 }
 
 refreshFindings?.addEventListener("click", async () => {
-  const sessionId = window.prompt("ID de la sesión");
-  if (!sessionId) return;
+  const sessionId = (await getActiveSession())?.id;
+  if (!sessionId) return setStatus("Inicia una sesión primero");
   const response = await fetch(
     `http://127.0.0.1:4317/sessions/${encodeURIComponent(sessionId)}/findings`,
   );
@@ -105,8 +136,8 @@ refreshFindings?.addEventListener("click", async () => {
 filter?.addEventListener("change", () => refreshFindings?.click());
 
 saveCandidates?.addEventListener("click", async () => {
-  const sessionId = window.prompt("ID de la sesión activa");
-  if (!sessionId) return;
+  const sessionId = (await getActiveSession())?.id;
+  if (!sessionId) return setStatus("Inicia una sesión primero");
   for (const candidate of lastCandidates)
     await fetch("http://127.0.0.1:4317/findings", {
       method: "POST",
@@ -114,6 +145,42 @@ saveCandidates?.addEventListener("click", async () => {
       body: JSON.stringify({ ...candidate, sessionId, origin: "rule" }),
     });
   if (status) status.textContent = "Candidatos registrados";
+});
+
+startSessionButton?.addEventListener("click", async () => {
+  if (!projectSelect?.value) return setStatus("Selecciona un proyecto");
+  const projects = (await fetch("http://127.0.0.1:4317/projects").then(
+    (response) => response.json(),
+  )) as Array<{ id: string; baseUrl: string }>;
+  const project = projects.find((item) => item.id === projectSelect.value);
+  if (!project) return setStatus("Proyecto no encontrado");
+  const response = await fetch("http://127.0.0.1:4317/sessions", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      projectId: project.id,
+      mode: "manual",
+      browser: "Firefox",
+      resolution: `${window.screen.width}x${window.screen.height}`,
+      initialUrl: project.baseUrl,
+    }),
+  });
+  const session = (await response.json()) as { id: string; projectId: string };
+  await browser.storage.local.set({ activeSession: session });
+  if (sessionView) sessionView.textContent = `Sesión activa: ${session.id}`;
+  setStatus("Sesión iniciada");
+});
+
+closeSessionButton?.addEventListener("click", async () => {
+  const session = await getActiveSession();
+  if (!session) return setStatus("No hay una sesión activa");
+  await fetch(
+    `http://127.0.0.1:4317/sessions/${encodeURIComponent(session.id)}/close`,
+    { method: "POST" },
+  );
+  await browser.storage.local.remove("activeSession");
+  if (sessionView) sessionView.textContent = "Sin sesión activa";
+  setStatus("Sesión finalizada");
 });
 
 select?.addEventListener("click", async () => {
@@ -127,11 +194,12 @@ browser.runtime.onMessage.addListener((message: ExtensionMessage) => {
   if (message.type !== "TAMANDUA_ELEMENT_SELECTED_FORWARD") return;
   if (result) result.textContent = JSON.stringify(message.element, null, 2);
   selectedElement = message.element as { selector?: string };
+  selectedFindingId = undefined;
   if (status) status.textContent = "Elemento seleccionado";
 });
 
 capture?.addEventListener("click", async () => {
-  const findingId = window.prompt("ID del hallazgo confirmado");
+  const findingId = selectedFindingId;
   if (!findingId) return;
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
   if (!tab?.windowId || !tab.url) return;
@@ -160,3 +228,7 @@ capture?.addEventListener("click", async () => {
 });
 
 await checkService();
+await loadProjects();
+const session = await getActiveSession();
+if (sessionView && session)
+  sessionView.textContent = `Sesión activa: ${session.id}`;

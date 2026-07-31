@@ -9,6 +9,7 @@ import { dirname, join } from "node:path";
 import {
   DomainError,
   analyzeSnapshot,
+  closeSession,
   createFinding,
   createId,
   createProject,
@@ -239,6 +240,22 @@ export async function createApp(
         if (!session)
           throw new ServiceError(404, "Session not found", "SESSION_NOT_FOUND");
         return send(response, 200, session);
+      }
+      const closeSessionMatch = url.pathname.match(
+        /^\/sessions\/([^/]+)\/close$/,
+      );
+      if (request.method === "POST" && closeSessionMatch) {
+        const sessionId = closeSessionMatch[1];
+        if (!sessionId)
+          throw new ServiceError(400, "Invalid session id", "INVALID_ID");
+        const session = await repositories.sessions.findById(sessionId);
+        if (!session)
+          throw new ServiceError(404, "Session not found", "SESSION_NOT_FOUND");
+        return send(
+          response,
+          200,
+          await repositories.sessions.update(closeSession(session)),
+        );
       }
       const findingsMatch = url.pathname.match(
         /^\/sessions\/([^/]+)\/findings$/,
