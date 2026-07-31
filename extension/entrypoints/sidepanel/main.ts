@@ -1,9 +1,11 @@
-export {};
+import type { ExtensionMessage } from "../../utils/messages.js";
 
 const status = document.querySelector<HTMLParagraphElement>("#status");
 const result = document.querySelector<HTMLPreElement>("#result");
 const analyze = document.querySelector<HTMLButtonElement>("#analyze");
 const select = document.querySelector<HTMLButtonElement>("#select");
+const capture = document.querySelector<HTMLButtonElement>("#capture");
+let selectedElement: { selector?: string } | undefined;
 
 async function checkService() {
   const response = await browser.runtime.sendMessage({
@@ -45,10 +47,40 @@ select?.addEventListener("click", async () => {
   if (status) status.textContent = "Selecciona un elemento en la página";
 });
 
-browser.runtime.onMessage.addListener((message) => {
+browser.runtime.onMessage.addListener((message: ExtensionMessage) => {
   if (message.type !== "TAMANDUA_ELEMENT_SELECTED_FORWARD") return;
   if (result) result.textContent = JSON.stringify(message.element, null, 2);
+  selectedElement = message.element as { selector?: string };
   if (status) status.textContent = "Elemento seleccionado";
+});
+
+capture?.addEventListener("click", async () => {
+  const findingId = window.prompt("ID del hallazgo confirmado");
+  if (!findingId) return;
+  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.windowId || !tab.url) return;
+  const dataUrl = await browser.tabs.captureVisibleTab(tab.windowId, {
+    format: "png",
+  });
+  const response = await fetch("http://127.0.0.1:4317/evidence", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      findingId,
+      type: selectedElement ? "element-screenshot" : "full-page-screenshot",
+      dataUrl,
+      url: tab.url,
+      browser: "Chromium",
+      resolution: `${window.screen.width}x${window.screen.height}`,
+      ...(selectedElement?.selector
+        ? { selector: selectedElement.selector }
+        : {}),
+    }),
+  });
+  if (status)
+    status.textContent = response.ok
+      ? "Evidencia guardada"
+      : "No se pudo guardar la evidencia";
 });
 
 await checkService();

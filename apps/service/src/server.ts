@@ -1,17 +1,19 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import {
   type IncomingMessage,
   type Server,
   type ServerResponse,
   createServer,
 } from "node:http";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import {
   analyzeSnapshot,
+  createId,
   createProject,
   pageSnapshotSchema,
   startSession,
 } from "@tamandua/core";
+import type { Evidence } from "@tamandua/core";
 import { createDatabase } from "@tamandua/persistence";
 import { createRepositories } from "@tamandua/persistence";
 import { z } from "zod";
@@ -29,6 +31,15 @@ const sessionInput = z.object({
   browser: z.string().min(1),
   resolution: z.string().min(1),
   initialUrl: z.string().url(),
+});
+const evidenceInput = z.object({
+  findingId: z.string().min(1),
+  type: z.enum(["element-screenshot", "full-page-screenshot"]),
+  dataUrl: z.string().regex(/^data:image\/(png|jpeg);base64,/),
+  url: z.string().url(),
+  browser: z.string().min(1),
+  resolution: z.string().min(1),
+  selector: z.string().optional(),
 });
 
 export class ServiceError extends Error {
@@ -92,6 +103,40 @@ export async function createApp(
             pageSnapshotSchema.parse(await body(request)),
           ),
         });
+      if (request.method === "POST" && url.pathname === "/evidence") {
+        const input = evidenceInput.parse(await body(request));
+        const handle = await repositories.findings.findById(input.findingId);
+        if (!handle)
+          throw new ServiceError(404, "Finding not found", "FINDING_NOT_FOUND");
+        const extension = input.dataUrl.startsWith("data:image/jpeg")
+          ? "jpg"
+          : "png";
+        const directory = join(
+          process.env.HOME ?? ".",
+          ".tamandua",
+          "sessions",
+          input.findingId,
+          "screenshots",
+        );
+        await mkdir(directory, { recursive: true });
+        const originalPath = join(directory, `original.${extension}`);
+        await writeFile(
+          originalPath,
+          Buffer.from(input.dataUrl.split(",")[1] ?? "", "base64"),
+        );
+        const evidence: Evidence = {
+          id: createId(),
+          findingId: input.findingId,
+          type: input.type,
+          originalPath,
+          url: input.url,
+          capturedAt: new Date().toISOString(),
+          browser: input.browser,
+          resolution: input.resolution,
+          ...(input.selector ? { selector: input.selector } : {}),
+        };
+        return send(response, 201, await repositories.evidence.save(evidence));
+      }
       if (request.method === "POST" && url.pathname === "/sessions") {
         const input = sessionInput.parse(await body(request));
         if (!(await repositories.projects.findById(input.projectId)))

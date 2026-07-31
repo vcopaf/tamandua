@@ -1,3 +1,5 @@
+import type { ExtensionMessage } from "../utils/messages.js";
+
 type ElementSnapshot = {
   tagName: string;
   visibleText: string;
@@ -146,7 +148,7 @@ export default defineContentScript({
         element: selected,
       });
     };
-    browser.runtime.onMessage.addListener((message) => {
+    browser.runtime.onMessage.addListener((message: ExtensionMessage) => {
       if (message.type === "TAMANDUA_ANALYZE_PAGE") return pageSnapshot();
       if (message.type === "TAMANDUA_START_SELECTOR") {
         selecting = true;
