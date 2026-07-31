@@ -3,11 +3,13 @@
   "private": true,
   "packageManager": "pnpm@9.15.0",
   "scripts": {
-    "build": "pnpm --filter @tamandua/core build",
+    "build": "pnpm --filter @tamandua/core --filter @tamandua/persistence build",
     "prepare": "husky",
     "lint": "biome check .",
-    "typecheck": "pnpm --filter @tamandua/core typecheck",
-    "test": "pnpm --filter @tamandua/core test"
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "typecheck": "pnpm --filter @tamandua/core --filter @tamandua/persistence typecheck",
+    "test": "pnpm --filter @tamandua/core --filter @tamandua/persistence test"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
