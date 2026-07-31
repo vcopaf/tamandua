@@ -7,4 +7,12 @@ export default defineBackground(() => {
       .then((response) => ({ connected: response.ok }))
       .catch(() => ({ connected: false }));
   });
+
+  browser.runtime.onMessage.addListener((message) => {
+    if (message.type !== "TAMANDUA_ELEMENT_SELECTED") return;
+    void browser.runtime.sendMessage({
+      type: "TAMANDUA_ELEMENT_SELECTED_FORWARD",
+      element: message.element,
+    });
+  });
 });

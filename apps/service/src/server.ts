@@ -25,6 +25,15 @@ const sessionInput = z.object({
   resolution: z.string().min(1),
   initialUrl: z.string().url(),
 });
+const snapshotInput = z.object({
+  url: z.string().url(),
+  title: z.string(),
+  headings: z.array(z.string()),
+  texts: z.array(z.string()),
+  forms: z.array(z.unknown()),
+  controls: z.array(z.unknown()),
+  images: z.array(z.unknown()),
+});
 
 export class ServiceError extends Error {
   constructor(
@@ -74,6 +83,13 @@ export async function createApp(
       }
       if (request.method === "GET" && url.pathname === "/sessions")
         return send(response, 200, await repositories.sessions.list());
+      if (request.method === "POST" && url.pathname === "/snapshots") {
+        const snapshot = snapshotInput.parse(await body(request));
+        return send(response, 202, {
+          accepted: true,
+          snapshot: { url: snapshot.url, title: snapshot.title },
+        });
+      }
       if (request.method === "POST" && url.pathname === "/sessions") {
         const input = sessionInput.parse(await body(request));
         if (!(await repositories.projects.findById(input.projectId)))
