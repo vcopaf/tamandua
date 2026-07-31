@@ -1,0 +1,15 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "moduleResolution": "Bundler",
+    "module": "ESNext",
+    "noEmit": true
+  },
+  "include": [
+    ".wxt/**/*.ts",
+    "entrypoints",
+    "utils",
+    "wxt.config.ts",
+    "globals.d.ts"
+  ]
+}

@@ -1,7 +1,12 @@
 {
   "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
   "files": {
-    "ignore": ["**/dist/**", "**/coverage/**"]
+    "ignore": [
+      "**/dist/**",
+      "**/coverage/**",
+      "extension/.output/**",
+      "extension/.wxt/**"
+    ]
   },
   "formatter": {
     "enabled": true,

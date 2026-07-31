@@ -4,3 +4,5 @@ coverage/
 .turbo/
 *.db
 .tamandua/
+extension/.output/
+extension/.wxt/

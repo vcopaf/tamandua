@@ -1,0 +1,14 @@
+{
+  "name": "@tamandua/extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "wxt build",
+    "dev": "wxt dev",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": { "wxt": "0.21.2" },
+  "devDependencies": { "@types/chrome": "^0.0.287", "typescript": "^5.7.2" }
+}

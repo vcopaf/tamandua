@@ -2,14 +2,18 @@
   "name": "tamandua",
   "private": true,
   "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": "22.22.3",
+    "pnpm": "9.15.0"
+  },
   "scripts": {
-    "build": "pnpm --filter @tamandua/core --filter @tamandua/persistence --filter @tamandua/service --filter @tamandua/cli build",
+    "build": "pnpm --filter @tamandua/core --filter @tamandua/persistence --filter @tamandua/service --filter @tamandua/cli --filter @tamandua/extension build",
     "prepare": "husky",
     "lint": "biome check .",
     "format": "biome format --write .",
     "format:check": "biome format .",
-    "typecheck": "pnpm --filter @tamandua/core --filter @tamandua/persistence --filter @tamandua/service --filter @tamandua/cli typecheck",
-    "test": "pnpm --filter @tamandua/core --filter @tamandua/persistence --filter @tamandua/service --filter @tamandua/cli test"
+    "typecheck": "pnpm --filter @tamandua/core --filter @tamandua/persistence --filter @tamandua/service --filter @tamandua/cli --filter @tamandua/extension typecheck",
+    "test": "pnpm --filter @tamandua/core --filter @tamandua/persistence --filter @tamandua/service --filter @tamandua/cli --filter @tamandua/extension test"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
