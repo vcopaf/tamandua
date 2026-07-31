@@ -27,7 +27,15 @@ analyze?.addEventListener("click", async () => {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(snapshot),
   }).catch(() => undefined);
-  if (result) result.textContent = JSON.stringify(snapshot, null, 2);
+  const analysis = await fetch("http://127.0.0.1:4317/analyze", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(snapshot),
+  })
+    .then((response) => response.json() as Promise<unknown>)
+    .catch(() => ({ findings: [] }));
+  if (result)
+    result.textContent = JSON.stringify({ snapshot, analysis }, null, 2);
 });
 
 select?.addEventListener("click", async () => {

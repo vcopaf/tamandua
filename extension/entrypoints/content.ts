@@ -110,9 +110,8 @@ function pageSnapshot() {
       ...document.querySelectorAll("input, select, textarea, button"),
     ].map(snapshotElement),
     images: [...document.images].map((image) => ({
-      src: image.currentSrc,
+      element: snapshotElement(image),
       alt: image.alt,
-      selector: selectorFor(image),
     })),
   };
 }

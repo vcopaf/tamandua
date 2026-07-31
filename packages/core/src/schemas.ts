@@ -157,3 +157,20 @@ export const ruleResultSchema = z.object({
   element: elementSnapshotSchema.optional(),
 });
 export type RuleResult = z.infer<typeof ruleResultSchema>;
+
+export const imageSnapshotSchema = z.object({
+  element: elementSnapshotSchema,
+  alt: z.string(),
+});
+export type ImageSnapshot = z.infer<typeof imageSnapshotSchema>;
+
+export const pageSnapshotSchema = z.object({
+  url: z.string().url(),
+  title: z.string(),
+  headings: z.array(z.string()),
+  texts: z.array(z.string()),
+  forms: z.array(z.unknown()),
+  controls: z.array(elementSnapshotSchema),
+  images: z.array(imageSnapshotSchema),
+});
+export type PageSnapshot = z.infer<typeof pageSnapshotSchema>;
