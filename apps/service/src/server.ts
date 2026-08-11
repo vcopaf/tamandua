@@ -69,6 +69,11 @@ const findingCreateInput = z.object({
   confidence: z.number().min(0).max(1),
   url: z.string().url(),
   element: elementSnapshotSchema.optional(),
+  selector: z.string().optional(),
+  elementText: z.string().optional(),
+  elementTag: z.string().optional(),
+  location: z.string().optional(),
+  evidenceText: z.string().optional(),
 });
 const findingPatchInput = z.object({
   status: z
@@ -167,10 +172,39 @@ export async function createApp(
         const input = findingCreateInput.parse(await body(request));
         if (!(await repositories.sessions.findById(input.sessionId)))
           throw new ServiceError(404, "Session not found", "SESSION_NOT_FOUND");
+        const {
+          selector,
+          elementText,
+          elementTag,
+          location,
+          evidenceText,
+          ...findingInput
+        } = input;
+        const description = [
+          findingInput.description,
+          location ? `Ubicación: ${location}` : "",
+          evidenceText ? `Evidencia: ${evidenceText}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n");
         return send(
           response,
           201,
-          await repositories.findings.save(createFinding(input)),
+          await repositories.findings.save(
+            createFinding({
+              ...findingInput,
+              description,
+              ...(selector
+                ? {
+                    element: {
+                      tagName: elementTag ?? "unknown",
+                      visibleText: elementText ?? "",
+                      selector,
+                    },
+                  }
+                : {}),
+            }),
+          ),
         );
       }
       const findingMatch = url.pathname.match(/^\/findings\/([^/]+)$/);

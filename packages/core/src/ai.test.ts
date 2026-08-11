@@ -15,7 +15,7 @@ const snapshot: PageSnapshot = {
 describe("manual AI flow", () => {
   it("creates a prompt containing the snapshot and instructions", () => {
     expect(createAnalysisPrompt(snapshot)).toContain(
-      "Devuelve únicamente JSON válido",
+      "Devuelve únicamente un objeto JSON válido",
     );
     expect(createAnalysisPrompt(snapshot)).toContain("https://example.test");
   });

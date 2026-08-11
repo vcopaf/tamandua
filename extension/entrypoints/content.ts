@@ -220,6 +220,17 @@ export default defineContentScript({
         highlight(undefined);
         return { active: false };
       }
+      if (message.type === "TAMANDUA_HIGHLIGHT_ELEMENT") {
+        const element = document.querySelector<HTMLElement>(message.selector);
+        if (!element) return { found: false };
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+        const previous = element.style.outline;
+        element.style.outline = "3px solid #d97706";
+        window.setTimeout(() => {
+          element.style.outline = previous;
+        }, 2500);
+        return { found: true };
+      }
       return undefined;
     });
   },

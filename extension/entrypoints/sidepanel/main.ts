@@ -1,5 +1,5 @@
 import { createAnalysisPrompt, parseAIResponse } from "@tamandua/core/ai";
-import type { PageSnapshot } from "@tamandua/core/schemas";
+import type { ElementSnapshot, PageSnapshot } from "@tamandua/core/schemas";
 import type { ExtensionMessage } from "../../utils/messages.js";
 
 const status = document.querySelector<HTMLParagraphElement>("#status");
@@ -291,8 +291,21 @@ reloadTab?.addEventListener("click", async () => {
 
 copyPromptButton?.addEventListener("click", async () => {
   if (!lastSnapshot) return setStatus("Analiza una pantalla primero");
-  await navigator.clipboard.writeText(createAnalysisPrompt(lastSnapshot));
-  setStatus("Prompt copiado. Pégalo en ChatGPT y trae la respuesta JSON.");
+  try {
+    await navigator.clipboard.writeText(createAnalysisPrompt(lastSnapshot));
+    const originalLabel = copyPromptButton.textContent;
+    copyPromptButton.textContent = "Prompt copiado ✓";
+    setStatus(
+      "Prompt copiado correctamente. Pégalo en ChatGPT y trae la respuesta JSON.",
+    );
+    window.setTimeout(() => {
+      copyPromptButton.textContent = originalLabel ?? "Copiar prompt";
+    }, 2500);
+  } catch {
+    setStatus(
+      "No se pudo copiar automáticamente. Revisa los permisos del portapapeles.",
+    );
+  }
 });
 
 importAIButton?.addEventListener("click", async () => {
@@ -343,6 +356,40 @@ function renderFindings(items: Array<Record<string, unknown>>) {
       const label = document.createElement("span");
       label.textContent = `${String(finding.title ?? "Hallazgo")} [${String(finding.status ?? "candidate")}]`;
       item.append(label);
+      const summary = document.createElement("p");
+      summary.className = "hint";
+      summary.textContent = `${String(finding.category ?? "other")} · ${String(finding.severity ?? "minor")} · ${String(finding.priority ?? "medium")}`;
+      item.append(summary);
+      const element = finding.element as
+        | { selector?: string; visibleText?: string }
+        | undefined;
+      if (element?.selector) {
+        const location = document.createElement("p");
+        location.className = "hint";
+        location.textContent = `${element.selector}${element.visibleText ? ` · "${element.visibleText}"` : ""}`;
+        item.append(location);
+        const locate = document.createElement("button");
+        locate.className = "secondary";
+        locate.textContent = "Ver elemento";
+        locate.addEventListener("click", async (event) => {
+          event.stopPropagation();
+          const [tab] = await browser.tabs.query({
+            active: true,
+            currentWindow: true,
+          });
+          if (!tab?.id) return setStatus("No se encontró una pestaña activa");
+          const response = await browser.tabs.sendMessage(tab.id, {
+            type: "TAMANDUA_HIGHLIGHT_ELEMENT",
+            selector: element.selector,
+          });
+          setStatus(
+            response?.found
+              ? "Elemento resaltado en la página"
+              : "No se encontró el selector en la página actual",
+          );
+        });
+        item.append(locate);
+      }
       if (typeof finding.id === "string") {
         item.addEventListener("click", () => {
           selectedFindingId = finding.id as string;
@@ -367,6 +414,13 @@ function renderFindings(items: Array<Record<string, unknown>>) {
           });
           item.append(button);
         }
+        const detail = document.createElement("details");
+        const detailSummary = document.createElement("summary");
+        detailSummary.textContent = "Ver detalle";
+        const description = document.createElement("p");
+        description.textContent = String(finding.description ?? "");
+        detail.append(detailSummary, description);
+        item.append(detail);
       }
       return item;
     }),
@@ -477,6 +531,16 @@ browser.runtime.onMessage.addListener((message: ExtensionMessage) => {
   if (result) result.textContent = JSON.stringify(message.element, null, 2);
   selectedElement = message.element as { selector?: string };
   selectedFindingId = undefined;
+  if (lastSnapshot) {
+    const element = message.element as ElementSnapshot;
+    lastSnapshot = {
+      ...lastSnapshot,
+      controls: [element],
+      texts: element.visibleText ? [element.visibleText] : [],
+      headings: [],
+      images: [],
+    };
+  }
   if (status) status.textContent = "Elemento seleccionado";
 });
 

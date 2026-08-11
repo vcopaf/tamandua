@@ -20,6 +20,9 @@ export const aiFindingCandidateSchema = z.object({
   confidence: z.number().min(0).max(1),
   selector: z.string().optional(),
   evidenceText: z.string().optional(),
+  elementText: z.string().optional(),
+  elementTag: z.string().optional(),
+  location: z.string().optional(),
 });
 export type AIFindingCandidate = z.infer<typeof aiFindingCandidateSchema>;
 
@@ -50,7 +53,24 @@ function redact(value: unknown): unknown {
 
 export function createAnalysisPrompt(snapshot: PageSnapshot): string {
   const safeSnapshot = redact(snapshot);
-  return `Actúa como especialista QA de aplicaciones web. Analiza únicamente la información visible y comprobable del snapshot. Detecta posibles problemas de formularios, accesibilidad básica, contenido, textos, navegación y experiencia de usuario. Solo reporta un problema cuando exista evidencia explícita. No inventes estados, comportamientos o contenido. Ignora scripts, atributos internos, texto técnico de frameworks (Next.js, React, Angular, Vue), iconos aislados y contenido fuera del viewport. Si no hay evidencia suficiente, no generes un hallazgo. Devuelve únicamente JSON válido, sin Markdown ni explicaciones.\n\nFormato obligatorio:\n{"findings":[{"ruleId":"AI_DESCRIPTIVE_ID","category":"form|content|accessibility|technical|functional|other","title":"Título breve","description":"Descripción","actualResult":"Resultado actual","expectedResult":"Resultado esperado","severity":"blocker|critical|major|minor|trivial","priority":"high|medium|low","confidence":0.9,"selector":"#selector","evidenceText":"Texto relevante"}]}\n\nSnapshot:\n${JSON.stringify(safeSnapshot, null, 2)}`;
+  return `Actúa como especialista QA de aplicaciones web. Analiza únicamente la información visible y comprobable del snapshot. Detecta posibles problemas de formularios, accesibilidad básica, contenido, textos, navegación y experiencia de usuario.
+
+REGLAS OBLIGATORIAS:
+- Devuelve únicamente un objeto JSON válido. No uses Markdown, comentarios ni explicaciones.
+- Si no existe evidencia explícita suficiente, devuelve exactamente {"findings":[]}.
+- No inventes estados, comportamientos, textos, selectores ni funcionalidades.
+- Ignora scripts, atributos internos, texto técnico de Next.js, React, Angular o Vue, iconos aislados y contenido fuera del viewport.
+- Usa únicamente selectores que existan exactamente en el snapshot; si no aplica, omite selector y usa location "No determinable".
+- elementTag debe corresponder al elemento real: input, button, a, img o document.
+- evidenceText debe copiar literalmente evidencia visible del snapshot y escapar comillas correctamente.
+- location debe indicar el contexto aproximado o ser "No determinable".
+- Antes de responder, valida que el JSON pueda ser parseado por un parser estándar, que sus llaves estén balanceadas y que todos los hallazgos tengan evidencia.
+
+FORMATO OBLIGATORIO:
+{"findings":[{"ruleId":"AI_DESCRIPTIVE_ID","category":"form|content|accessibility|technical|functional|other","title":"Título breve","description":"Descripción","actualResult":"Resultado actual","expectedResult":"Resultado esperado","severity":"blocker|critical|major|minor|trivial","priority":"high|medium|low","confidence":0.9,"selector":"#selector","elementText":"Texto visible o label","elementTag":"input|button|a|img|document","location":"Formulario de registro","evidenceText":"Texto literal que demuestra el problema"}]}
+
+SNAPSHOT:
+${JSON.stringify(safeSnapshot, null, 2)}`;
 }
 
 export function parseAIResponse(input: string): AIFindingCandidate[] {
