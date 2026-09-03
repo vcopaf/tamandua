@@ -26,6 +26,30 @@ export const projectSchema = z.object({
 });
 export type Project = z.infer<typeof projectSchema>;
 
+export const projectContextSchema = z
+  .object({
+    projectId: id,
+    primaryLanguage: z.string().regex(/^[a-z]{2}(?:-[A-Z]{2})?$/),
+    enabledLanguages: z
+      .array(z.string().regex(/^[a-z]{2}(?:-[A-Z]{2})?$/))
+      .min(1),
+    ignoredTerms: z.array(z.string().trim().min(1)).default([]),
+    preferredTerms: z.record(z.string().trim().min(1)).default({}),
+    excludedSelectors: z
+      .array(z.string().trim().min(1))
+      .default(["pre", "code"]),
+    reviewerNotes: z.string().trim().default(""),
+  })
+  .superRefine((context, issue) => {
+    if (!context.enabledLanguages.includes(context.primaryLanguage))
+      issue.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["enabledLanguages"],
+        message: "Primary language must be enabled",
+      });
+  });
+export type ProjectContext = z.infer<typeof projectContextSchema>;
+
 export const sessionSchema = z.object({
   id,
   projectId: id,

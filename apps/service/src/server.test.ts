@@ -47,6 +47,43 @@ describe("local service", () => {
       id: string;
       baseUrl: string;
     };
+    const contextResponse = await fetch(
+      `${base}/projects/${project.id}/context`,
+    );
+    expect((await contextResponse.json()).primaryLanguage).toBe("es-BO");
+    const savedContext = await fetch(`${base}/projects/${project.id}/context`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        primaryLanguage: "es-BO",
+        enabledLanguages: ["es-BO"],
+        ignoredTerms: ["AGETIC"],
+        preferredTerms: { clickear: "hacer clic" },
+        excludedSelectors: ["pre"],
+        reviewerNotes: "Portal ciudadano.",
+      }),
+    });
+    expect(savedContext.status).toBe(200);
+    const spellingResponse = await fetch(`${base}/spelling/check`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        projectId: project.id,
+        blocks: [
+          {
+            text: "Puedes clickear para continuar",
+            source: "text",
+            selector: "p:nth-of-type(1)",
+          },
+        ],
+      }),
+    });
+    expect(spellingResponse.status).toBe(200);
+    expect((await spellingResponse.json()).findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ ruleId: "PREFERRED_TERM" }),
+      ]),
+    );
     const sessionResponse = await fetch(`${base}/sessions`, {
       method: "POST",
       headers: { "content-type": "application/json" },

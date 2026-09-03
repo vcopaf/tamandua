@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { createId } from "./identifiers.js";
-import { findingSchema, projectSchema, sessionSchema } from "./schemas.js";
+import {
+  findingSchema,
+  projectContextSchema,
+  projectSchema,
+  sessionSchema,
+} from "./schemas.js";
 
 const date = "2026-07-31T12:00:00.000Z";
 
@@ -64,6 +69,16 @@ describe("domain schemas", () => {
       url: "https://testing.example.test/form",
       evidenceIds: [],
       createdAt: date,
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("requires the primary language to be enabled in project context", () => {
+    const result = projectContextSchema.safeParse({
+      projectId: "project-1",
+      primaryLanguage: "es-BO",
+      enabledLanguages: ["es-ES"],
     });
 
     expect(result.success).toBe(false);

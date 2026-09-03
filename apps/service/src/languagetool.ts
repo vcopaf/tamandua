@@ -50,6 +50,8 @@ export class LanguageToolProvider implements SpellingProvider {
               .map((replacement) => replacement.value),
             offset: match.offset,
             length: match.length,
+            context: block.text,
+            source: block.source,
             ...(block.selector ? { selector: block.selector } : {}),
           })),
         );

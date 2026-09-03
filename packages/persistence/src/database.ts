@@ -12,6 +12,9 @@ export async function createDatabase(filename = ":memory:") {
     sql`CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, description TEXT, base_url TEXT NOT NULL, environment TEXT NOT NULL, language TEXT NOT NULL, created_at TEXT NOT NULL)`,
   );
   await db.run(
+    sql`CREATE TABLE IF NOT EXISTS project_contexts (project_id TEXT PRIMARY KEY NOT NULL REFERENCES projects(id), primary_language TEXT NOT NULL, enabled_languages TEXT NOT NULL, ignored_terms TEXT NOT NULL, preferred_terms TEXT NOT NULL, excluded_selectors TEXT NOT NULL, reviewer_notes TEXT NOT NULL)`,
+  );
+  await db.run(
     sql`CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY NOT NULL, project_id TEXT NOT NULL REFERENCES projects(id), mode TEXT NOT NULL, status TEXT NOT NULL, browser TEXT NOT NULL, resolution TEXT NOT NULL, initial_url TEXT NOT NULL, started_at TEXT NOT NULL, finished_at TEXT, findings_count INTEGER NOT NULL DEFAULT 0)`,
   );
   await db.run(

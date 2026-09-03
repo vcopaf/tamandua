@@ -45,10 +45,47 @@ const copyPromptButton =
 const aiResponse = document.querySelector<HTMLTextAreaElement>("#ai-response");
 const importAIButton = document.querySelector<HTMLButtonElement>("#import-ai");
 const aiError = document.querySelector<HTMLParagraphElement>("#ai-error");
+const contextLanguage =
+  document.querySelector<HTMLSelectElement>("#context-language");
+const ignoredTerms =
+  document.querySelector<HTMLTextAreaElement>("#ignored-terms");
+const preferredTerms =
+  document.querySelector<HTMLTextAreaElement>("#preferred-terms");
+const reviewerNotes =
+  document.querySelector<HTMLTextAreaElement>("#reviewer-notes");
+const saveContextButton =
+  document.querySelector<HTMLButtonElement>("#save-context");
+const checkSpellingButton =
+  document.querySelector<HTMLButtonElement>("#check-spelling");
+const spellingSummary =
+  document.querySelector<HTMLParagraphElement>("#spelling-summary");
+const spellingFindings =
+  document.querySelector<HTMLDivElement>("#spelling-findings");
+type ProjectContext = {
+  primaryLanguage: string;
+  enabledLanguages: string[];
+  ignoredTerms: string[];
+  preferredTerms: Record<string, string>;
+  excludedSelectors: string[];
+  reviewerNotes: string;
+};
+type SpellingIssue = {
+  provider: "local" | "languagetool";
+  ruleId: string;
+  message: string;
+  text: string;
+  replacements: string[];
+  offset?: number;
+  length?: number;
+  selector?: string;
+  context?: string;
+  source?: "text" | "heading" | "control";
+};
 let selectedElement: { selector?: string } | undefined;
 let lastCandidates: Array<Record<string, unknown>> = [];
 let selectedFindingId: string | undefined;
 let lastSnapshot: PageSnapshot | undefined;
+let currentProjectContext: ProjectContext | undefined;
 
 for (const button of navigation) {
   button.addEventListener("click", () => {
@@ -85,9 +122,12 @@ async function updateAvailability() {
   const projectReady = hasProject();
   const sessionReady = Boolean(session);
   for (const button of navigation) {
-    const requiresReview = ["inspect", "findings-view", "evidence"].includes(
-      button.dataset.view ?? "",
-    );
+    const requiresReview = [
+      "inspect",
+      "spelling",
+      "findings-view",
+      "evidence",
+    ].includes(button.dataset.view ?? "");
     button.disabled = requiresReview && (!projectReady || !sessionReady);
   }
   if (analyze) analyze.disabled = !sessionReady;
@@ -95,9 +135,73 @@ async function updateAvailability() {
   if (capture) capture.disabled = !sessionReady;
   if (refreshFindings) refreshFindings.disabled = !sessionReady;
   if (saveCandidates) saveCandidates.disabled = !sessionReady;
+  if (checkSpellingButton) checkSpellingButton.disabled = !sessionReady;
   if (startSessionButton)
     startSessionButton.hidden = !projectReady || sessionReady;
   if (closeSessionButton) closeSessionButton.hidden = !sessionReady;
+}
+
+function parseLines(value: string) {
+  return value
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function preferredTermsFrom(value: string) {
+  return Object.fromEntries(
+    parseLines(value)
+      .map((line) => line.split(":").map((part) => part.trim()))
+      .filter(
+        (parts): parts is [string, string] =>
+          parts.length === 2 && Boolean(parts[0]) && Boolean(parts[1]),
+      ),
+  );
+}
+
+async function loadProjectContext() {
+  if (!projectSelect?.value) return;
+  const response = await fetch(
+    `http://127.0.0.1:4317/projects/${encodeURIComponent(projectSelect.value)}/context`,
+  );
+  if (!response.ok)
+    return setStatus("No se pudo cargar el contexto del proyecto");
+  currentProjectContext = (await response.json()) as ProjectContext;
+  if (contextLanguage)
+    contextLanguage.value = currentProjectContext.primaryLanguage;
+  if (ignoredTerms)
+    ignoredTerms.value = currentProjectContext.ignoredTerms.join("\n");
+  if (preferredTerms)
+    preferredTerms.value = Object.entries(currentProjectContext.preferredTerms)
+      .map(([term, preferred]) => `${term}: ${preferred}`)
+      .join("\n");
+  if (reviewerNotes) reviewerNotes.value = currentProjectContext.reviewerNotes;
+}
+
+async function saveProjectContext() {
+  if (!projectSelect?.value || !contextLanguage) return;
+  const primaryLanguage = contextLanguage.value;
+  const response = await fetch(
+    `http://127.0.0.1:4317/projects/${encodeURIComponent(projectSelect.value)}/context`,
+    {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        primaryLanguage,
+        enabledLanguages: [primaryLanguage],
+        ignoredTerms: parseLines(ignoredTerms?.value ?? ""),
+        preferredTerms: preferredTermsFrom(preferredTerms?.value ?? ""),
+        excludedSelectors: currentProjectContext?.excludedSelectors ?? [
+          "pre",
+          "code",
+        ],
+        reviewerNotes: reviewerNotes?.value.trim() ?? "",
+      }),
+    },
+  );
+  if (!response.ok) return setStatus("No se pudo guardar el contexto");
+  currentProjectContext = (await response.json()) as ProjectContext;
+  setStatus("Contexto lingüístico guardado");
 }
 
 function showView(view: string) {
@@ -220,10 +324,14 @@ createProjectButton?.addEventListener("click", async () => {
 
 projectSelect?.addEventListener("change", () => {
   void updateAvailability();
+  currentProjectContext = undefined;
+  void loadProjectContext();
   setStatus(
     projectSelect.value ? "Proyecto seleccionado" : "Selecciona un proyecto",
   );
 });
+
+saveContextButton?.addEventListener("click", () => void saveProjectContext());
 
 analyze?.addEventListener("click", async () => {
   if (!(await getActiveSession()))
@@ -273,7 +381,154 @@ analyze?.addEventListener("click", async () => {
     lastCandidates = analysis.findings as Array<Record<string, unknown>>;
   if (result)
     result.textContent = JSON.stringify({ snapshot, analysis }, null, 2);
-  await registerCandidates();
+});
+
+function renderSpellingFindings(issues: SpellingIssue[], url: string) {
+  if (!spellingFindings) return;
+  if (!issues.length) {
+    spellingFindings.replaceChildren(
+      Object.assign(document.createElement("p"), {
+        className: "empty",
+        textContent: "No se detectaron posibles problemas en el texto visible.",
+      }),
+    );
+    return;
+  }
+  spellingFindings.replaceChildren(
+    ...issues.map((issue) => {
+      const item = document.createElement("article");
+      const badge = document.createElement("span");
+      badge.className = "badge";
+      badge.textContent =
+        issue.provider === "languagetool" ? "GRAMÁTICA" : "ESTILO LOCAL";
+      const title = document.createElement("h3");
+      title.textContent = issue.text;
+      const detail = document.createElement("p");
+      detail.className = "hint";
+      detail.textContent = issue.message;
+      const context = document.createElement("p");
+      context.className = "hint";
+      context.textContent = issue.context
+        ? `Contexto: ${issue.context}`
+        : "Sin contexto disponible";
+      item.append(badge, title, detail, context);
+      if (issue.replacements.length) {
+        const suggestion = document.createElement("p");
+        suggestion.className = "hint";
+        suggestion.textContent = `Sugerencia: ${issue.replacements.join(", ")}`;
+        item.append(suggestion);
+      }
+      const actions = document.createElement("div");
+      actions.className = "finding-actions";
+      const locate = document.createElement("button");
+      locate.className = "secondary";
+      locate.textContent = "Ver en página";
+      locate.addEventListener("click", async () => {
+        const [tab] = await browser.tabs.query({
+          active: true,
+          currentWindow: true,
+        });
+        if (!tab?.id || !issue.selector)
+          return setStatus("No hay ubicación para este texto");
+        const response = await browser.tabs.sendMessage(tab.id, {
+          type: "TAMANDUA_HIGHLIGHT_TEXT",
+          selector: issue.selector,
+          ...(issue.offset === undefined ? {} : { offset: issue.offset }),
+          ...(issue.length === undefined ? {} : { length: issue.length }),
+        });
+        setStatus(
+          response?.found
+            ? "Texto resaltado en la página"
+            : "No se pudo resaltar el texto",
+        );
+      });
+      const confirm = document.createElement("button");
+      confirm.textContent = "Es bug";
+      confirm.addEventListener("click", async () => {
+        const sessionId = (await getActiveSession())?.id;
+        if (!sessionId) return setStatus("Inicia una revisión primero");
+        const response = await fetch("http://127.0.0.1:4317/findings", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            sessionId,
+            origin: "automatic",
+            ruleId: issue.ruleId,
+            category: "content",
+            title: `Redacción: ${issue.text}`,
+            description: issue.message,
+            actualResult: issue.context ?? issue.text,
+            expectedResult:
+              issue.replacements[0] ?? "Revisar la redacción indicada.",
+            severity: "minor",
+            priority: "low",
+            confidence: issue.provider === "languagetool" ? 0.8 : 0.9,
+            url,
+            ...(issue.selector
+              ? {
+                  selector: issue.selector,
+                  elementText: issue.context ?? issue.text,
+                  elementTag: issue.source ?? "text",
+                }
+              : {}),
+          }),
+        });
+        if (!response.ok) return setStatus("No se pudo registrar el hallazgo");
+        item.remove();
+        setStatus("Hallazgo registrado como pendiente de revisión");
+      });
+      const dismiss = document.createElement("button");
+      dismiss.className = "secondary";
+      dismiss.textContent = "No es bug";
+      dismiss.addEventListener("click", () => {
+        item.remove();
+        setStatus("Resultado descartado para esta revisión");
+      });
+      const ignore = document.createElement("button");
+      ignore.className = "secondary";
+      ignore.textContent = "Ignorar término";
+      ignore.addEventListener("click", async () => {
+        if (!currentProjectContext) await loadProjectContext();
+        if (!currentProjectContext) return;
+        currentProjectContext.ignoredTerms = [
+          ...new Set([...currentProjectContext.ignoredTerms, issue.text]),
+        ];
+        if (ignoredTerms)
+          ignoredTerms.value = currentProjectContext.ignoredTerms.join("\n");
+        await saveProjectContext();
+        item.remove();
+        setStatus(`"${issue.text}" se ignorará en este proyecto`);
+      });
+      actions.append(locate, confirm, dismiss, ignore);
+      item.append(actions);
+      return item;
+    }),
+  );
+}
+
+checkSpellingButton?.addEventListener("click", async () => {
+  const session = await getActiveSession();
+  if (!session || !projectSelect?.value)
+    return setStatus("Inicia una revisión primero");
+  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id || !tab.url)
+    return setStatus("No se encontró una pestaña activa");
+  if (!currentProjectContext) await loadProjectContext();
+  const blocks = await browser.tabs.sendMessage(tab.id, {
+    type: "TAMANDUA_GET_TEXT_BLOCKS",
+  });
+  if (!Array.isArray(blocks) || !blocks.length)
+    return setStatus("No se encontró texto visible para revisar");
+  const response = await fetch("http://127.0.0.1:4317/spelling/check", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ projectId: projectSelect.value, blocks }),
+  });
+  if (!response.ok) return setStatus("No se pudo revisar la redacción");
+  const analysis = (await response.json()) as { findings: SpellingIssue[] };
+  if (spellingSummary)
+    spellingSummary.textContent = `${analysis.findings.length} posibles problemas en ${blocks.length} bloques de texto.`;
+  renderSpellingFindings(analysis.findings, tab.url);
 });
 
 reloadTab?.addEventListener("click", async () => {
@@ -576,6 +831,7 @@ capture?.addEventListener("click", async () => {
 
 await checkService();
 await loadProjects();
+await loadProjectContext();
 await loadHistory();
 const session = await getActiveSession();
 if (sessionView && session)

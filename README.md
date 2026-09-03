@@ -34,6 +34,8 @@ node apps/service/dist/index.js
 
 El servicio escucha únicamente en `http://127.0.0.1:4317`. La CLI se construye con `pnpm --filter @tamandua/cli build` y permite `project create`, `project list`, `session start`, `session list`, `report generate` y `start`.
 
+La revisión de redacción usa reglas locales y puede integrar LanguageTool instalado en la misma máquina en `http://127.0.0.1:8081`. No requiere claves, cuentas ni servicios de pago; si no está disponible, Tamanduá conserva las comprobaciones locales.
+
 La extensión se construye con `pnpm --filter @tamandua/extension build` y se carga desde `extension/.output/chrome-mv3` en Chromium mediante `chrome://extensions`. `tamandua report generate <session-id>` produce `report.json`, `report.md` y `report.html`. Los escenarios YAML se ejecutan con `tamandua run --project <id> --scenario escenario.yml`.
 
 La guía reproducible de instalación y demo está en `docs/installation.md`; la revisión de seguridad está en `docs/security.md`.

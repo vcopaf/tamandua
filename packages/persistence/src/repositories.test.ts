@@ -33,6 +33,15 @@ describe("SQLite repositories", () => {
     });
 
     await repositories.projects.save(project);
+    await repositories.projectContexts.save({
+      projectId: project.id,
+      primaryLanguage: "es-BO",
+      enabledLanguages: ["es-BO"],
+      ignoredTerms: ["AGETIC"],
+      preferredTerms: { clickear: "hacer clic" },
+      excludedSelectors: ["pre"],
+      reviewerNotes: "Usar terminología institucional.",
+    });
     await repositories.sessions.save(session);
     await repositories.findings.save(finding);
 
@@ -42,6 +51,10 @@ describe("SQLite repositories", () => {
     expect((await repositories.sessions.findById(session.id))?.status).toBe(
       "active",
     );
+    expect(
+      (await repositories.projectContexts.findByProjectId(project.id))
+        ?.preferredTerms.clickear,
+    ).toBe("hacer clic");
     expect((await repositories.findings.findById(finding.id))?.status).toBe(
       "candidate",
     );

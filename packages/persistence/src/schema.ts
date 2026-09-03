@@ -10,6 +10,18 @@ export const projects = sqliteTable("projects", {
   createdAt: text("created_at").notNull(),
 });
 
+export const projectContexts = sqliteTable("project_contexts", {
+  projectId: text("project_id")
+    .primaryKey()
+    .references(() => projects.id),
+  primaryLanguage: text("primary_language").notNull(),
+  enabledLanguages: text("enabled_languages", { mode: "json" }).notNull(),
+  ignoredTerms: text("ignored_terms", { mode: "json" }).notNull(),
+  preferredTerms: text("preferred_terms", { mode: "json" }).notNull(),
+  excludedSelectors: text("excluded_selectors", { mode: "json" }).notNull(),
+  reviewerNotes: text("reviewer_notes").notNull(),
+});
+
 export const sessions = sqliteTable("sessions", {
   id: text("id").primaryKey(),
   projectId: text("project_id")

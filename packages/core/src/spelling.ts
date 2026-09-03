@@ -23,6 +23,8 @@ export const spellingIssueSchema = z.object({
   offset: z.number().int().nonnegative().optional(),
   length: z.number().int().positive().optional(),
   selector: z.string().optional(),
+  context: z.string().optional(),
+  source: z.enum(["text", "heading", "control"]).optional(),
 });
 export type SpellingIssue = z.infer<typeof spellingIssueSchema>;
 
@@ -49,6 +51,8 @@ export class LocalSpellingProvider implements SpellingProvider {
           message: "El texto contiene espacios consecutivos.",
           text: block.text,
           replacements: [block.text.replace(/\s{2,}/g, " ")],
+          context: block.text,
+          source: block.source,
           ...(block.selector ? { selector: block.selector } : {}),
         });
       if (/^\s|\s$/.test(block.text))
@@ -58,6 +62,8 @@ export class LocalSpellingProvider implements SpellingProvider {
           message: "El texto contiene espacios al inicio o al final.",
           text: block.text,
           replacements: [block.text.trim()],
+          context: block.text,
+          source: block.source,
           ...(block.selector ? { selector: block.selector } : {}),
         });
       for (const [term, preferred] of Object.entries(config.preferredTerms)) {
@@ -74,6 +80,8 @@ export class LocalSpellingProvider implements SpellingProvider {
             replacements: [preferred],
             offset: match.index,
             length: match[0].length,
+            context: block.text,
+            source: block.source,
             ...(block.selector ? { selector: block.selector } : {}),
           });
       }
@@ -84,6 +92,8 @@ export class LocalSpellingProvider implements SpellingProvider {
           message: "El encabezado debería comenzar con mayúscula.",
           text: block.text,
           replacements: [capitalize(block.text.trim())],
+          context: block.text,
+          source: block.source,
           ...(block.selector ? { selector: block.selector } : {}),
         });
     }

@@ -6,9 +6,16 @@ export type ElementSelectionMessage = {
 export type ExtensionMessage =
   | { type: "TAMANDUA_HEALTH" }
   | { type: "TAMANDUA_ANALYZE_PAGE" }
+  | { type: "TAMANDUA_GET_TEXT_BLOCKS" }
   | { type: "TAMANDUA_START_SELECTOR" }
   | { type: "TAMANDUA_STOP_SELECTOR" }
   | { type: "TAMANDUA_HIGHLIGHT_ELEMENT"; selector: string }
+  | {
+      type: "TAMANDUA_HIGHLIGHT_TEXT";
+      selector: string;
+      offset?: number;
+      length?: number;
+    }
   | ElementSelectionMessage
   | {
       type: "TAMANDUA_ELEMENT_SELECTED_FORWARD";

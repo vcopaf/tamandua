@@ -9,6 +9,7 @@ import {
 import { dirname, join } from "node:path";
 import {
   DomainError,
+  LocalSpellingProvider,
   analyzeSnapshot,
   closeSession,
   createFinding,
@@ -16,7 +17,10 @@ import {
   createProject,
   elementSnapshotSchema,
   pageSnapshotSchema,
+  projectContextSchema,
+  spellingConfigSchema,
   startSession,
+  textBlockSchema,
   updateFinding,
   updateFindingStatus,
 } from "@tamandua/core";
@@ -24,6 +28,7 @@ import type { Evidence } from "@tamandua/core";
 import { createDatabase } from "@tamandua/persistence";
 import { createRepositories } from "@tamandua/persistence";
 import { z } from "zod";
+import { LanguageToolProvider } from "./languagetool.js";
 
 const projectInput = z.object({
   name: z.string(),
@@ -31,6 +36,20 @@ const projectInput = z.object({
   baseUrl: z.string().url(),
   environment: z.string(),
   language: z.string(),
+});
+const projectContextInput = z.object({
+  primaryLanguage: z.string().regex(/^[a-z]{2}(?:-[A-Z]{2})?$/),
+  enabledLanguages: z
+    .array(z.string().regex(/^[a-z]{2}(?:-[A-Z]{2})?$/))
+    .min(1),
+  ignoredTerms: z.array(z.string().trim().min(1)).default([]),
+  preferredTerms: z.record(z.string().trim().min(1)).default({}),
+  excludedSelectors: z.array(z.string().trim().min(1)).default([]),
+  reviewerNotes: z.string().trim().default(""),
+});
+const spellingCheckInput = z.object({
+  projectId: z.string().min(1),
+  blocks: z.array(textBlockSchema).min(1).max(200),
 });
 const sessionInput = z.object({
   projectId: z.string().min(1),
@@ -117,7 +136,7 @@ function send(response: ServerResponse, status: number, payload: unknown) {
   response.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
     "access-control-allow-origin": "*",
-    "access-control-allow-methods": "GET,POST,PATCH,OPTIONS",
+    "access-control-allow-methods": "GET,POST,PUT,PATCH,OPTIONS",
     "access-control-allow-headers": "content-type",
   });
   response.end(JSON.stringify(payload));
@@ -127,6 +146,22 @@ export async function createApp(
   database?: Awaited<ReturnType<typeof createDatabase>>,
 ) {
   const repositories = createRepositories(database ?? (await createDatabase()));
+  const localSpelling = new LocalSpellingProvider();
+  const languageTool = new LanguageToolProvider();
+
+  async function contextFor(projectId: string) {
+    const project = await repositories.projects.findById(projectId);
+    if (!project)
+      throw new ServiceError(404, "Project not found", "PROJECT_NOT_FOUND");
+    return (
+      (await repositories.projectContexts.findByProjectId(projectId)) ??
+      projectContextSchema.parse({
+        projectId,
+        primaryLanguage: project.language,
+        enabledLanguages: [project.language],
+      })
+    );
+  }
   return createServer(async (request, response) => {
     const requestId = randomUUID();
     const startedAt = performance.now();
@@ -153,6 +188,29 @@ export async function createApp(
         const project = createProject(projectInput.parse(await body(request)));
         return send(response, 201, await repositories.projects.save(project));
       }
+      const projectContextMatch = url.pathname.match(
+        /^\/projects\/([^/]+)\/context$/,
+      );
+      if (projectContextMatch) {
+        const projectId = projectContextMatch[1];
+        if (!projectId)
+          throw new ServiceError(400, "Invalid project id", "INVALID_ID");
+        if (request.method === "GET")
+          return send(response, 200, await contextFor(projectId));
+        if (request.method === "PUT") {
+          await contextFor(projectId);
+          return send(
+            response,
+            200,
+            await repositories.projectContexts.save(
+              projectContextSchema.parse({
+                projectId,
+                ...projectContextInput.parse(await body(request)),
+              }),
+            ),
+          );
+        }
+      }
       if (request.method === "GET" && url.pathname === "/sessions")
         return send(response, 200, await repositories.sessions.list());
       if (request.method === "POST" && url.pathname === "/snapshots") {
@@ -168,6 +226,29 @@ export async function createApp(
             pageSnapshotSchema.parse(await body(request)),
           ),
         });
+      if (request.method === "POST" && url.pathname === "/spelling/check") {
+        const input = spellingCheckInput.parse(await body(request));
+        const context = await contextFor(input.projectId);
+        const config = spellingConfigSchema.parse({
+          language: context.primaryLanguage,
+          ignoredTerms: context.ignoredTerms,
+          preferredTerms: context.preferredTerms,
+        });
+        const blocks = input.blocks.filter(
+          (block) =>
+            !context.excludedSelectors.some((selector) =>
+              block.selector?.includes(selector),
+            ),
+        );
+        const [localIssues, languageToolIssues] = await Promise.all([
+          localSpelling.check(blocks, config),
+          languageTool.check(blocks, config),
+        ]);
+        return send(response, 200, {
+          findings: [...localIssues, ...languageToolIssues],
+          languageTool: "optional-local-provider",
+        });
+      }
       if (request.method === "POST" && url.pathname === "/findings") {
         const input = findingCreateInput.parse(await body(request));
         if (!(await repositories.sessions.findById(input.sessionId)))

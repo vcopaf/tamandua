@@ -111,7 +111,13 @@ function isFrameworkNoise(text: string): boolean {
   );
 }
 
-function visibleTextBlocks(): string[] {
+type TextBlock = {
+  text: string;
+  source: "text" | "heading" | "control";
+  selector: string;
+};
+
+function visibleTextBlocks(): TextBlock[] {
   return [...document.querySelectorAll("body *")]
     .filter((element) => element.children.length === 0)
     .map((element) => ({ element, text: element.textContent?.trim() ?? "" }))
@@ -124,7 +130,15 @@ function visibleTextBlocks(): string[] {
         snapshot.inViewport
       );
     })
-    .map(({ text }) => text)
+    .map(({ element, text }) => ({
+      text,
+      selector: selectorFor(element),
+      source: element.matches("h1, h2, h3")
+        ? ("heading" as const)
+        : element.matches("button, input, select, textarea")
+          ? ("control" as const)
+          : ("text" as const),
+    }))
     .slice(0, 200);
 }
 
@@ -144,7 +158,7 @@ function pageSnapshot() {
         );
       })
       .map(({ text }) => text),
-    texts: visibleTextBlocks(),
+    texts: visibleTextBlocks().map((block) => block.text),
     forms: [...document.forms].map((form) => ({
       selector: selectorFor(form),
       controls: form.querySelectorAll("input, select, textarea, button").length,
@@ -167,6 +181,14 @@ export default defineContentScript({
     let selecting = false;
     let hovered: HTMLElement | undefined;
     let previousOutline = "";
+    let activeTextMark: HTMLElement | undefined;
+    const clearTextMark = () => {
+      if (!activeTextMark) return;
+      activeTextMark.replaceWith(
+        document.createTextNode(activeTextMark.textContent ?? ""),
+      );
+      activeTextMark = undefined;
+    };
     const highlight = (element: HTMLElement | undefined) => {
       if (hovered) hovered.style.outline = previousOutline;
       hovered = element;
@@ -207,6 +229,8 @@ export default defineContentScript({
           };
         }
       }
+      if (message.type === "TAMANDUA_GET_TEXT_BLOCKS")
+        return visibleTextBlocks();
       if (message.type === "TAMANDUA_START_SELECTOR") {
         selecting = true;
         document.addEventListener("mousemove", onMove, true);
@@ -229,6 +253,29 @@ export default defineContentScript({
         window.setTimeout(() => {
           element.style.outline = previous;
         }, 2500);
+        return { found: true };
+      }
+      if (message.type === "TAMANDUA_HIGHLIGHT_TEXT") {
+        clearTextMark();
+        const element = document.querySelector<HTMLElement>(message.selector);
+        if (!element) return { found: false };
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+        const node = walker.nextNode();
+        if (!node || !node.textContent) return { found: false };
+        const offset = message.offset ?? 0;
+        const length = message.length ?? node.textContent.length;
+        if (offset + length > node.textContent.length) return { found: false };
+        const range = document.createRange();
+        range.setStart(node, offset);
+        range.setEnd(node, offset + length);
+        const mark = document.createElement("mark");
+        mark.style.background = "#fef08a";
+        mark.style.outline = "2px solid #dc2626";
+        mark.style.outlineOffset = "2px";
+        range.surroundContents(mark);
+        activeTextMark = mark;
+        mark.scrollIntoView({ behavior: "smooth", block: "center" });
+        window.setTimeout(clearTextMark, 5000);
         return { found: true };
       }
       return undefined;

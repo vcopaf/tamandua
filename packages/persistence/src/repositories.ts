@@ -1,13 +1,26 @@
 import {
   evidenceSchema,
   findingSchema,
+  projectContextSchema,
   projectSchema,
   sessionSchema,
 } from "@tamandua/core";
-import type { Evidence, Finding, Project, Session } from "@tamandua/core";
+import type {
+  Evidence,
+  Finding,
+  Project,
+  ProjectContext,
+  Session,
+} from "@tamandua/core";
 import { eq } from "drizzle-orm";
 import type { DatabaseHandle } from "./database.js";
-import { evidence, findings, projects, sessions } from "./schema.js";
+import {
+  evidence,
+  findings,
+  projectContexts,
+  projects,
+  sessions,
+} from "./schema.js";
 
 export function createRepositories(handle: DatabaseHandle) {
   const { db } = handle;
@@ -40,6 +53,34 @@ export function createRepositories(handle: DatabaseHandle) {
               description: row.description ?? undefined,
             })
           : undefined;
+      },
+    },
+    projectContexts: {
+      async findByProjectId(projectId: string) {
+        const rows = await db
+          .select()
+          .from(projectContexts)
+          .where(eq(projectContexts.projectId, projectId));
+        const row = rows[0];
+        return row ? projectContextSchema.parse(row) : undefined;
+      },
+      async save(context: ProjectContext) {
+        const value = projectContextSchema.parse(context);
+        await db
+          .insert(projectContexts)
+          .values(value)
+          .onConflictDoUpdate({
+            target: projectContexts.projectId,
+            set: {
+              primaryLanguage: value.primaryLanguage,
+              enabledLanguages: value.enabledLanguages,
+              ignoredTerms: value.ignoredTerms,
+              preferredTerms: value.preferredTerms,
+              excludedSelectors: value.excludedSelectors,
+              reviewerNotes: value.reviewerNotes,
+            },
+          });
+        return value;
       },
     },
     sessions: {

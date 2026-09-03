@@ -30,6 +30,18 @@ node apps/cli/dist/index.js session start --project <project-id> --mode manual
 node apps/cli/dist/index.js report generate <session-id>
 ```
 
+## Revisión De Redacción Local
+
+Cada proyecto conserva un contexto lingüístico con idioma, términos permitidos, formas preferidas y notas de revisión. Desde la extensión, configura el contexto en Proyecto y abre Ortografía para revisar el texto visible de la pestaña.
+
+Tamanduá siempre aplica reglas locales. Para activar comprobaciones adicionales de gramática y estilo en español, inicia LanguageTool en la misma máquina y puerto local:
+
+```bash
+java -cp languagetool-server.jar org.languagetool.server.HTTPServer --port 8081
+```
+
+El servidor se consulta únicamente mediante `127.0.0.1`; el contenido revisado no se envía a servicios externos. Los resultados son candidatos: usa Ver en página para resaltar el texto, Es bug para registrarlo, No es bug para descartarlo de la revisión o Ignorar término para añadirlo al contexto del proyecto.
+
 ## Automatización
 
 Servir la demo y ejecutar el escenario incluido:
