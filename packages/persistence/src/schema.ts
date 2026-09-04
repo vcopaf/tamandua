@@ -22,6 +22,16 @@ export const projectContexts = sqliteTable("project_contexts", {
   reviewerNotes: text("reviewer_notes").notNull(),
 });
 
+export const globalLinguisticIgnores = sqliteTable(
+  "global_linguistic_ignores",
+  {
+    key: text("key").primaryKey(),
+    language: text("language").notNull(),
+    term: text("term").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+);
+
 export const sessions = sqliteTable("sessions", {
   id: text("id").primaryKey(),
   projectId: text("project_id")

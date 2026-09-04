@@ -4,7 +4,7 @@ export default defineConfig({
   manifest: {
     name: "Tamanduá QA",
     description: "Revisión manual asistida por Tamanduá",
-    permissions: ["sidePanel", "activeTab", "tabs", "storage"],
+    permissions: ["sidePanel", "activeTab", "tabs", "storage", "downloads"],
     host_permissions: ["http://127.0.0.1:4317/*"],
     action: {},
     browser_specific_settings: {

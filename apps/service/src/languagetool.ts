@@ -26,6 +26,11 @@ export class LanguageToolProvider implements SpellingProvider {
     config: SpellingConfig,
   ): Promise<SpellingIssue[]> {
     const issues: SpellingIssue[] = [];
+    const ignored = new Set(
+      config.ignoredTerms.map((term) =>
+        term.toLocaleLowerCase(config.language),
+      ),
+    );
     for (const block of blocks) {
       try {
         const response = await fetch(this.endpoint, {
@@ -40,20 +45,29 @@ export class LanguageToolProvider implements SpellingProvider {
         if (!response.ok) continue;
         const parsed = responseSchema.parse(await response.json());
         issues.push(
-          ...parsed.matches.map((match) => ({
-            provider: "languagetool" as const,
-            ruleId: match.rule?.id ?? "LANGUAGETOOL",
-            message: match.message,
-            text: block.text.slice(match.offset, match.offset + match.length),
-            replacements: match.replacements
-              .slice(0, 5)
-              .map((replacement) => replacement.value),
-            offset: match.offset,
-            length: match.length,
-            context: block.text,
-            source: block.source,
-            ...(block.selector ? { selector: block.selector } : {}),
-          })),
+          ...parsed.matches
+            .filter(
+              (match) =>
+                !ignored.has(
+                  block.text
+                    .slice(match.offset, match.offset + match.length)
+                    .toLocaleLowerCase(config.language),
+                ),
+            )
+            .map((match) => ({
+              provider: "languagetool" as const,
+              ruleId: match.rule?.id ?? "LANGUAGETOOL",
+              message: match.message,
+              text: block.text.slice(match.offset, match.offset + match.length),
+              replacements: match.replacements
+                .slice(0, 5)
+                .map((replacement) => replacement.value),
+              offset: match.offset,
+              length: match.length,
+              context: block.text,
+              source: block.source,
+              ...(block.selector ? { selector: block.selector } : {}),
+            })),
         );
       } catch {
         // LanguageTool is optional; local rules remain available when it is down.

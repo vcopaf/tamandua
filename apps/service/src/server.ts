@@ -18,8 +18,12 @@ import {
   elementSnapshotSchema,
   pageSnapshotSchema,
   projectContextSchema,
+  renderHtmlReport,
+  renderJsonReport,
+  renderMarkdownReport,
   spellingConfigSchema,
   startSession,
+  summarizeSession,
   textBlockSchema,
   updateFinding,
   updateFindingStatus,
@@ -50,6 +54,10 @@ const projectContextInput = z.object({
 const spellingCheckInput = z.object({
   projectId: z.string().min(1),
   blocks: z.array(textBlockSchema).min(1).max(200),
+});
+const globalLinguisticIgnoreInput = z.object({
+  language: z.string().regex(/^[a-z]{2}(?:-[A-Z]{2})?$/),
+  term: z.string().trim().min(1),
 });
 const sessionInput = z.object({
   projectId: z.string().min(1),
@@ -192,6 +200,33 @@ export async function createApp(
         const project = createProject(projectInput.parse(await body(request)));
         return send(response, 201, await repositories.projects.save(project));
       }
+      if (url.pathname === "/linguistic-ignores") {
+        if (request.method === "GET") {
+          const language = url.searchParams.get("language");
+          if (!language)
+            throw new ServiceError(
+              400,
+              "Language is required",
+              "INVALID_LANGUAGE",
+            );
+          return send(
+            response,
+            200,
+            await repositories.globalLinguisticIgnores.listByLanguage(language),
+          );
+        }
+        if (request.method === "POST") {
+          const input = globalLinguisticIgnoreInput.parse(await body(request));
+          return send(
+            response,
+            201,
+            await repositories.globalLinguisticIgnores.save({
+              ...input,
+              createdAt: new Date().toISOString(),
+            }),
+          );
+        }
+      }
       const projectContextMatch = url.pathname.match(
         /^\/projects\/([^/]+)\/context$/,
       );
@@ -233,9 +268,18 @@ export async function createApp(
       if (request.method === "POST" && url.pathname === "/spelling/check") {
         const input = spellingCheckInput.parse(await body(request));
         const context = await contextFor(input.projectId);
+        const globalIgnores =
+          await repositories.globalLinguisticIgnores.listByLanguage(
+            context.primaryLanguage,
+          );
         const config = spellingConfigSchema.parse({
           language: context.primaryLanguage,
-          ignoredTerms: context.ignoredTerms,
+          ignoredTerms: [
+            ...new Set([
+              ...context.ignoredTerms,
+              ...globalIgnores.map((ignore) => ignore.term),
+            ]),
+          ],
           preferredTerms: context.preferredTerms,
         });
         const blocks = input.blocks.filter(
@@ -293,7 +337,8 @@ export async function createApp(
               existing.origin === candidate.origin &&
               existing.ruleId === candidate.ruleId &&
               existing.url === candidate.url &&
-              existing.element?.selector === candidate.element?.selector,
+              existing.element?.selector === candidate.element?.selector &&
+              existing.element?.visibleText === candidate.element?.visibleText,
           );
           if (duplicate)
             return send(response, 200, { finding: duplicate, duplicate: true });
@@ -447,6 +492,32 @@ export async function createApp(
           200,
           await repositories.findings.listBySession(sessionId),
         );
+      }
+      const reportMatch = url.pathname.match(/^\/sessions\/([^/]+)\/report$/);
+      if (request.method === "GET" && reportMatch) {
+        const sessionId = reportMatch[1];
+        if (!sessionId)
+          throw new ServiceError(400, "Invalid session id", "INVALID_ID");
+        const session = await repositories.sessions.findById(sessionId);
+        if (!session)
+          throw new ServiceError(404, "Session not found", "SESSION_NOT_FOUND");
+        const project = await repositories.projects.findById(session.projectId);
+        if (!project)
+          throw new ServiceError(404, "Project not found", "PROJECT_NOT_FOUND");
+        const findings = await repositories.findings.listBySession(sessionId);
+        const confirmed = findings.filter(
+          (finding) => finding.status === "confirmed",
+        );
+        const report = { project, session, findings: confirmed };
+        return send(response, 200, {
+          summary: summarizeSession(findings),
+          confirmedCount: confirmed.length,
+          reports: {
+            json: renderJsonReport(report),
+            markdown: renderMarkdownReport(report),
+            html: renderHtmlReport(report),
+          },
+        });
       }
       throw new ServiceError(404, "Route not found", "NOT_FOUND");
     } catch (error) {

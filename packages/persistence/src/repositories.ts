@@ -1,6 +1,7 @@
 import {
   evidenceSchema,
   findingSchema,
+  globalLinguisticIgnoreSchema,
   projectContextSchema,
   projectSchema,
   sessionPageSchema,
@@ -9,6 +10,7 @@ import {
 import type {
   Evidence,
   Finding,
+  GlobalLinguisticIgnore,
   Project,
   ProjectContext,
   Session,
@@ -19,6 +21,7 @@ import type { DatabaseHandle } from "./database.js";
 import {
   evidence,
   findings,
+  globalLinguisticIgnores,
   projectContexts,
   projects,
   sessionPages,
@@ -83,6 +86,31 @@ export function createRepositories(handle: DatabaseHandle) {
               reviewerNotes: value.reviewerNotes,
             },
           });
+        return value;
+      },
+    },
+    globalLinguisticIgnores: {
+      async listByLanguage(language: string) {
+        return (
+          await db
+            .select()
+            .from(globalLinguisticIgnores)
+            .where(eq(globalLinguisticIgnores.language, language))
+        ).map((row) =>
+          globalLinguisticIgnoreSchema.parse({
+            language: row.language,
+            term: row.term,
+            createdAt: row.createdAt,
+          }),
+        );
+      },
+      async save(ignore: GlobalLinguisticIgnore) {
+        const value = globalLinguisticIgnoreSchema.parse(ignore);
+        const key = `${value.language}:${value.term.toLocaleLowerCase(value.language)}`;
+        await db
+          .insert(globalLinguisticIgnores)
+          .values({ ...value, key })
+          .onConflictDoNothing();
         return value;
       },
     },

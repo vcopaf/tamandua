@@ -182,6 +182,27 @@ export default defineContentScript({
     let hovered: HTMLElement | undefined;
     let previousOutline = "";
     let activeTextMark: HTMLElement | undefined;
+    let stableTimer: number | undefined;
+    let observedUrl = window.location.href;
+    const reportStablePage = () => {
+      const url = window.location.href;
+      observedUrl = url;
+      window.clearTimeout(stableTimer);
+      stableTimer = window.setTimeout(() => {
+        if (window.location.href !== url) return reportStablePage();
+        void browser.runtime.sendMessage({
+          type: "TAMANDUA_PAGE_STABLE",
+          url,
+          title: document.title,
+        });
+      }, 1500);
+    };
+    window.addEventListener("popstate", reportStablePage);
+    window.addEventListener("hashchange", reportStablePage);
+    window.setInterval(() => {
+      if (window.location.href !== observedUrl) reportStablePage();
+    }, 750);
+    reportStablePage();
     const clearTextMark = () => {
       if (!activeTextMark) return;
       activeTextMark.replaceWith(
@@ -231,6 +252,10 @@ export default defineContentScript({
       }
       if (message.type === "TAMANDUA_GET_TEXT_BLOCKS")
         return visibleTextBlocks();
+      if (message.type === "TAMANDUA_REQUEST_PAGE_STABLE") {
+        reportStablePage();
+        return { scheduled: true };
+      }
       if (message.type === "TAMANDUA_START_SELECTOR") {
         selecting = true;
         document.addEventListener("mousemove", onMove, true);

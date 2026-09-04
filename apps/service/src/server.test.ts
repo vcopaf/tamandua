@@ -64,6 +64,18 @@ describe("local service", () => {
       }),
     });
     expect(savedContext.status).toBe(200);
+    const globalIgnoreResponse = await fetch(`${base}/linguistic-ignores`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ language: "es-BO", term: "AGETIC" }),
+    });
+    expect(globalIgnoreResponse.status).toBe(201);
+    const globalIgnores = await fetch(
+      `${base}/linguistic-ignores?language=es-BO`,
+    );
+    expect(await globalIgnores.json()).toEqual([
+      expect.objectContaining({ term: "AGETIC" }),
+    ]);
     const spellingResponse = await fetch(`${base}/spelling/check`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -157,6 +169,16 @@ describe("local service", () => {
       }),
     });
     expect((await updateResponse.json()).status).toBe("confirmed");
+    const reportResponse = await fetch(`${base}/sessions/${session.id}/report`);
+    expect(reportResponse.status).toBe(200);
+    const report = (await reportResponse.json()) as {
+      summary: { confirmed: number };
+      confirmedCount: number;
+      reports: { markdown: string };
+    };
+    expect(report.summary.confirmed).toBe(1);
+    expect(report.confirmedCount).toBe(1);
+    expect(report.reports.markdown).toContain("Campo sin label");
     await new Promise<void>((resolve, reject) =>
       app.close((error) => (error ? reject(error) : resolve())),
     );

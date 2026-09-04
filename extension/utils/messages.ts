@@ -7,6 +7,14 @@ export type ExtensionMessage =
   | { type: "TAMANDUA_HEALTH" }
   | { type: "TAMANDUA_ANALYZE_PAGE" }
   | { type: "TAMANDUA_GET_TEXT_BLOCKS" }
+  | { type: "TAMANDUA_REQUEST_PAGE_STABLE" }
+  | { type: "TAMANDUA_PAGE_STABLE"; url: string; title: string }
+  | {
+      type: "TAMANDUA_CONTINUOUS_REVIEW_UPDATED";
+      url: string;
+      detected: number;
+      added: number;
+    }
   | { type: "TAMANDUA_START_SELECTOR" }
   | { type: "TAMANDUA_STOP_SELECTOR" }
   | { type: "TAMANDUA_HIGHLIGHT_ELEMENT"; selector: string }

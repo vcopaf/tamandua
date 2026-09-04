@@ -32,6 +32,21 @@ const sessionView = document.querySelector<HTMLParagraphElement>("#session-id");
 const sessionSummary =
   document.querySelector<HTMLDivElement>("#session-summary");
 const reviewedPages = document.querySelector<HTMLDivElement>("#reviewed-pages");
+const continuousReviewButton =
+  document.querySelector<HTMLButtonElement>("#continuous-review");
+const continuousSummary = document.querySelector<HTMLParagraphElement>(
+  "#continuous-summary",
+);
+const reviewSummary = document.querySelector<HTMLDivElement>("#review-summary");
+const reportJsonButton = document.querySelector<HTMLButtonElement>(
+  "#download-report-json",
+);
+const reportMarkdownButton = document.querySelector<HTMLButtonElement>(
+  "#download-report-md",
+);
+const reportHtmlButton = document.querySelector<HTMLButtonElement>(
+  "#download-report-html",
+);
 const historyView = document.querySelector<HTMLDivElement>("#history");
 const loadHistoryButton =
   document.querySelector<HTMLButtonElement>("#load-history");
@@ -106,6 +121,11 @@ type SpellingIssue = {
   context?: string;
   source?: "text" | "heading" | "control";
 };
+type ContinuousReview = {
+  active: boolean;
+  pagesReviewed: number;
+  candidatesFound: number;
+};
 let selectedElement: { selector?: string } | undefined;
 let lastCandidates: Array<Record<string, unknown>> = [];
 let selectedFindingId: string | undefined;
@@ -136,6 +156,99 @@ async function getActiveSession() {
   return (await browser.storage.local.get("activeSession")).activeSession as
     | { id: string; projectId: string }
     | undefined;
+}
+
+async function loadContinuousReview() {
+  const review = (await browser.storage.local.get("continuousReview"))
+    .continuousReview as ContinuousReview | undefined;
+  const value = review ?? {
+    active: false,
+    pagesReviewed: 0,
+    candidatesFound: 0,
+  };
+  if (continuousReviewButton) {
+    continuousReviewButton.textContent = value.active
+      ? "Detener revisión continua"
+      : "Iniciar revisión continua";
+    continuousReviewButton.classList.toggle("danger", value.active);
+  }
+  if (continuousSummary)
+    continuousSummary.textContent = value.active
+      ? `Activa · ${value.pagesReviewed} páginas revisadas · ${value.candidatesFound} candidatos nuevos`
+      : "Revisión continua desactivada.";
+  return value;
+}
+
+type ReviewSummary = {
+  total: number;
+  candidates: number;
+  confirmed: number;
+  discarded: number;
+  duplicates: number;
+  resolved: number;
+};
+
+async function loadReviewSummary() {
+  if (!reviewSummary) return undefined;
+  const session = await getActiveSession();
+  if (!session) {
+    reviewSummary.textContent = "No hay resultados para cerrar.";
+    return undefined;
+  }
+  const findings = (await fetch(
+    `http://127.0.0.1:4317/sessions/${encodeURIComponent(session.id)}/findings`,
+  )
+    .then((response) => (response.ok ? response.json() : []))
+    .catch(() => [])) as Array<{ status: string }>;
+  const summary = findings.reduce<ReviewSummary>(
+    (current, finding) => {
+      current.total += 1;
+      if (finding.status === "candidate") current.candidates += 1;
+      if (finding.status === "confirmed") current.confirmed += 1;
+      if (finding.status === "discarded") current.discarded += 1;
+      if (finding.status === "duplicate") current.duplicates += 1;
+      if (finding.status === "resolved") current.resolved += 1;
+      return current;
+    },
+    {
+      total: 0,
+      candidates: 0,
+      confirmed: 0,
+      discarded: 0,
+      duplicates: 0,
+      resolved: 0,
+    },
+  );
+  reviewSummary.textContent = `Cierre: ${summary.confirmed} confirmados · ${summary.candidates} pendientes · ${summary.discarded} no son bug`;
+  return summary;
+}
+
+async function downloadReport(format: "json" | "markdown" | "html") {
+  const session = await getActiveSession();
+  if (!session) return setStatus("Inicia una revisión primero");
+  const response = await fetch(
+    `http://127.0.0.1:4317/sessions/${encodeURIComponent(session.id)}/report`,
+  );
+  if (!response.ok) return setStatus("No se pudo generar el reporte");
+  const payload = (await response.json()) as {
+    reports: Record<"json" | "markdown" | "html", string>;
+  };
+  const content = payload.reports[format];
+  const extension = format === "markdown" ? "md" : format;
+  const mime =
+    format === "html"
+      ? "text/html"
+      : format === "markdown"
+        ? "text/markdown"
+        : "application/json";
+  const objectUrl = URL.createObjectURL(new Blob([content], { type: mime }));
+  await browser.downloads.download({
+    url: objectUrl,
+    filename: `tamandua-session-${session.id}.${extension}`,
+    saveAs: true,
+  });
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
+  setStatus(`Reporte ${extension.toUpperCase()} listo para descargar`);
 }
 
 async function loadReviewedPages() {
@@ -215,6 +328,10 @@ async function updateAvailability() {
   if (refreshFindings) refreshFindings.disabled = !sessionReady;
   if (saveCandidates) saveCandidates.disabled = !sessionReady;
   if (checkSpellingButton) checkSpellingButton.disabled = !sessionReady;
+  if (continuousReviewButton) continuousReviewButton.disabled = !sessionReady;
+  if (reportJsonButton) reportJsonButton.disabled = !sessionReady;
+  if (reportMarkdownButton) reportMarkdownButton.disabled = !sessionReady;
+  if (reportHtmlButton) reportHtmlButton.disabled = !sessionReady;
   if (startSessionButton) startSessionButton.hidden = sessionReady;
   if (closeSessionButton) closeSessionButton.hidden = !sessionReady;
 }
@@ -524,42 +641,30 @@ function renderSpellingFindings(issues: SpellingIssue[], url: string) {
       const confirm = document.createElement("button");
       confirm.textContent = "Es bug";
       confirm.addEventListener("click", async () => {
-        const sessionId = (await getActiveSession())?.id;
-        if (!sessionId) return setStatus("Inicia una revisión primero");
-        const response = await fetch("http://127.0.0.1:4317/findings", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            sessionId,
-            origin: "automatic",
-            ruleId: issue.ruleId,
-            category: "content",
-            title: `Redacción: ${issue.text}`,
-            description: issue.message,
-            actualResult: issue.context ?? issue.text,
-            expectedResult:
-              issue.replacements[0] ?? "Revisar la redacción indicada.",
-            severity: "minor",
-            priority: "low",
-            confidence: issue.provider === "languagetool" ? 0.8 : 0.9,
-            url,
-            ...(issue.selector
-              ? {
-                  selector: issue.selector,
-                  elementText: issue.context ?? issue.text,
-                  elementTag: issue.source ?? "text",
-                }
-              : {}),
-          }),
-        });
-        if (!response.ok) return setStatus("No se pudo registrar el hallazgo");
+        const finding = await persistSpellingIssue(issue, url);
+        if (!finding) return;
         item.remove();
-        setStatus("Hallazgo registrado como pendiente de revisión");
+        setStatus(
+          finding.status === "confirmed"
+            ? "El hallazgo ya fue reportado"
+            : "Hallazgo registrado como pendiente de revisión",
+        );
       });
       const dismiss = document.createElement("button");
       dismiss.className = "secondary";
       dismiss.textContent = "No es bug";
-      dismiss.addEventListener("click", () => {
+      dismiss.addEventListener("click", async () => {
+        const finding = await persistSpellingIssue(issue, url);
+        if (!finding) return;
+        if (finding.status === "candidate")
+          await fetch(
+            `http://127.0.0.1:4317/findings/${encodeURIComponent(finding.id)}`,
+            {
+              method: "PATCH",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ status: "discarded" }),
+            },
+          );
         item.remove();
         setStatus("Resultado descartado para esta revisión");
       });
@@ -578,11 +683,79 @@ function renderSpellingFindings(issues: SpellingIssue[], url: string) {
         item.remove();
         setStatus(`"${issue.text}" se ignorará en este proyecto`);
       });
-      actions.append(locate, confirm, dismiss, ignore);
+      const ignoreGlobally = document.createElement("button");
+      ignoreGlobally.className = "secondary";
+      ignoreGlobally.textContent = "Ignorar globalmente";
+      ignoreGlobally.addEventListener("click", async () => {
+        if (!currentProjectContext) await loadProjectContext();
+        if (!currentProjectContext) return;
+        const response = await fetch(
+          "http://127.0.0.1:4317/linguistic-ignores",
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              language: currentProjectContext.primaryLanguage,
+              term: issue.text,
+            }),
+          },
+        );
+        if (!response.ok)
+          return setStatus("No se pudo guardar el ignorado global");
+        item.remove();
+        setStatus(`"${issue.text}" se ignorará en todos los proyectos`);
+      });
+      actions.append(locate, confirm, dismiss, ignore, ignoreGlobally);
       item.append(actions);
       return item;
     }),
   );
+}
+
+async function persistSpellingIssue(issue: SpellingIssue, url: string) {
+  const sessionId = (await getActiveSession())?.id;
+  if (!sessionId) {
+    setStatus("Inicia una revisión primero");
+    return undefined;
+  }
+  const response = await fetch("http://127.0.0.1:4317/findings", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      sessionId,
+      origin: "automatic",
+      ruleId: issue.ruleId,
+      category: "content",
+      title: `Redacción: ${issue.text}`,
+      description: issue.message,
+      actualResult: issue.context ?? issue.text,
+      expectedResult: issue.replacements[0] ?? "Revisar la redacción indicada.",
+      severity: "minor",
+      priority: "low",
+      confidence: issue.provider === "languagetool" ? 0.8 : 0.9,
+      url,
+      ...(issue.selector
+        ? {
+            selector: issue.selector,
+            elementText: issue.context ?? issue.text,
+            elementTag: issue.source ?? "text",
+          }
+        : {}),
+    }),
+  });
+  if (!response.ok) {
+    setStatus("No se pudo registrar el hallazgo");
+    return undefined;
+  }
+  const payload = (await response.json()) as {
+    id?: string;
+    status?: string;
+    finding?: { id: string; status: string };
+  };
+  const finding = payload.finding ?? payload;
+  if (typeof finding.id !== "string" || typeof finding.status !== "string")
+    return undefined;
+  return { id: finding.id, status: finding.status };
 }
 
 checkSpellingButton?.addEventListener("click", async () => {
@@ -779,7 +952,44 @@ function renderFindings(items: Array<Record<string, unknown>>) {
               element?.selector,
             ),
         );
-        actions.append(evidence);
+        const copyImage = document.createElement("button");
+        copyImage.className = "secondary";
+        copyImage.textContent = "Copiar captura";
+        copyImage.addEventListener("click", async () => {
+          const dataUrl = await captureFindingEvidence(
+            finding.id as string,
+            element?.selector,
+          );
+          if (!dataUrl) return;
+          try {
+            const blob = await fetch(dataUrl).then((response) =>
+              response.blob(),
+            );
+            await navigator.clipboard.write([
+              new ClipboardItem({ [blob.type]: blob }),
+            ]);
+            setStatus("Captura copiada al portapapeles");
+          } catch {
+            setStatus("No se pudo copiar la captura al portapapeles");
+          }
+        });
+        const downloadImage = document.createElement("button");
+        downloadImage.className = "secondary";
+        downloadImage.textContent = "Descargar captura";
+        downloadImage.addEventListener("click", async () => {
+          const dataUrl = await captureFindingEvidence(
+            finding.id as string,
+            element?.selector,
+          );
+          if (!dataUrl) return;
+          await browser.downloads.download({
+            url: dataUrl,
+            filename: `tamandua-${finding.id}.png`,
+            saveAs: true,
+          });
+          setStatus("Captura lista para descargar");
+        });
+        actions.append(evidence, copyImage, downloadImage);
         item.append(actions);
         const detail = document.createElement("details");
         const detailSummary = document.createElement("summary");
@@ -839,9 +1049,12 @@ async function captureFindingEvidence(findingId: string, selector?: string) {
       ...(selector ? { selector } : {}),
     }),
   });
-  setStatus(
-    response.ok ? "Evidencia guardada" : "No se pudo guardar la evidencia",
-  );
+  if (!response.ok) {
+    setStatus("No se pudo guardar la evidencia");
+    return undefined;
+  }
+  setStatus("Evidencia guardada");
+  return dataUrl;
 }
 
 refreshFindings?.addEventListener("click", async () => {
@@ -868,6 +1081,7 @@ refreshFindings?.addEventListener("click", async () => {
           finding.severity === severityFilter.value),
     ),
   );
+  await loadReviewSummary();
 });
 
 filter?.addEventListener("change", () => refreshFindings?.click());
@@ -947,34 +1161,80 @@ startSessionButton?.addEventListener("click", async () => {
     }),
   });
   const session = (await response.json()) as { id: string; projectId: string };
-  await browser.storage.local.set({ activeSession: session });
+  await browser.storage.local.set({
+    activeSession: session,
+    continuousReview: { active: false, pagesReviewed: 0, candidatesFound: 0 },
+  });
   if (sessionView) sessionView.textContent = `Sesión activa: ${session.id}`;
   if (sessionSummary)
     sessionSummary.textContent = `Revisión activa para ${project.name}. Ya puedes analizar la pestaña actual.`;
   setStatus("Revisión iniciada desde la pestaña actual");
   await updateAvailability();
+  await loadContinuousReview();
   await loadReviewedPages();
+  await loadReviewSummary();
   showView("inspect");
+});
+
+continuousReviewButton?.addEventListener("click", async () => {
+  const session = await getActiveSession();
+  if (!session) return setStatus("Inicia una revisión primero");
+  const current = await loadContinuousReview();
+  const next: ContinuousReview = { ...current, active: !current.active };
+  await browser.storage.local.set({ continuousReview: next });
+  await loadContinuousReview();
+  if (!next.active) return setStatus("Revisión continua detenida");
+  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id)
+    return setStatus("Revisión continua activa; abre una página web");
+  try {
+    await browser.tabs.sendMessage(tab.id, {
+      type: "TAMANDUA_REQUEST_PAGE_STABLE",
+    });
+    setStatus(
+      "Revisión continua activa: navega normalmente para analizar páginas",
+    );
+  } catch {
+    setStatus(
+      "Revisión continua activa; recarga la página actual para comenzar",
+    );
+  }
 });
 
 closeSessionButton?.addEventListener("click", async () => {
   const session = await getActiveSession();
   if (!session) return setStatus("No hay una sesión activa");
+  const summary = await loadReviewSummary();
+  if (
+    summary?.candidates &&
+    !window.confirm(
+      `Hay ${summary.candidates} hallazgos pendientes. ¿Finalizar la revisión de todos modos?`,
+    )
+  )
+    return;
   await fetch(
     `http://127.0.0.1:4317/sessions/${encodeURIComponent(session.id)}/close`,
     { method: "POST" },
   );
-  await browser.storage.local.remove("activeSession");
+  await browser.storage.local.remove(["activeSession", "continuousReview"]);
   if (sessionView) sessionView.textContent = "Sin sesión activa";
   if (sessionSummary)
     sessionSummary.textContent =
       "Revisión finalizada. Puedes consultar sus hallazgos en Historial.";
   setStatus("Revisión finalizada");
   await updateAvailability();
+  await loadContinuousReview();
   await loadReviewedPages();
   await loadHistory();
   showView("session");
 });
+
+reportJsonButton?.addEventListener("click", () => void downloadReport("json"));
+reportMarkdownButton?.addEventListener(
+  "click",
+  () => void downloadReport("markdown"),
+);
+reportHtmlButton?.addEventListener("click", () => void downloadReport("html"));
 
 loadHistoryButton?.addEventListener("click", () => void loadHistory());
 
@@ -992,6 +1252,17 @@ select?.addEventListener("click", async () => {
 });
 
 browser.runtime.onMessage.addListener((message: ExtensionMessage) => {
+  if (message.type === "TAMANDUA_CONTINUOUS_REVIEW_UPDATED") {
+    void loadContinuousReview();
+    void loadReviewedPages();
+    void refreshFindings?.click();
+    void loadReviewSummary();
+    if (message.added)
+      setStatus(
+        `${message.added} candidatos nuevos detectados mientras navegabas`,
+      );
+    return;
+  }
   if (message.type !== "TAMANDUA_ELEMENT_SELECTED_FORWARD") return;
   if (result) result.textContent = JSON.stringify(message.element, null, 2);
   selectedElement = message.element as { selector?: string };
@@ -1070,3 +1341,5 @@ if (sessionView && session)
   sessionView.textContent = `Sesión activa: ${session.id}`;
 await updateAvailability();
 await loadReviewedPages();
+await loadContinuousReview();
+await loadReviewSummary();

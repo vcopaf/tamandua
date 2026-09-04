@@ -41,4 +41,34 @@ describe("LanguageTool provider", () => {
     ).resolves.toEqual([]);
     vi.unstubAllGlobals();
   });
+
+  it("omits terms ignored by the project or globally", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            matches: [
+              {
+                message: "Sugerencia",
+                offset: 0,
+                length: 6,
+                replacements: [],
+                rule: { id: "RULE" },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    await expect(
+      new LanguageToolProvider().check([{ text: "AGETIC", source: "text" }], {
+        language: "es-BO",
+        ignoredTerms: ["AGETIC"],
+        preferredTerms: {},
+      }),
+    ).resolves.toEqual([]);
+    vi.unstubAllGlobals();
+  });
 });

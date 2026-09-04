@@ -50,6 +50,15 @@ export const projectContextSchema = z
   });
 export type ProjectContext = z.infer<typeof projectContextSchema>;
 
+export const globalLinguisticIgnoreSchema = z.object({
+  language: z.string().regex(/^[a-z]{2}(?:-[A-Z]{2})?$/),
+  term: z.string().trim().min(1),
+  createdAt: dateTime,
+});
+export type GlobalLinguisticIgnore = z.infer<
+  typeof globalLinguisticIgnoreSchema
+>;
+
 export const sessionSchema = z.object({
   id,
   projectId: id,
