@@ -7,9 +7,10 @@ describe("SQLite repositories", () => {
   it("persists projects, sessions and findings", async () => {
     const handle = await createDatabase();
     const repositories = createRepositories(handle);
+    const baseUrl = "https://example.test";
     const project = createProject({
       name: "Demo",
-      baseUrl: "https://example.test",
+      baseUrl,
       environment: "test",
       language: "es-BO",
     });
@@ -18,7 +19,7 @@ describe("SQLite repositories", () => {
       mode: "manual",
       browser: "Chromium",
       resolution: "1280x720",
-      initialUrl: project.baseUrl,
+      initialUrl: baseUrl,
     });
     const finding = createFinding({
       sessionId: session.id,
@@ -29,7 +30,7 @@ describe("SQLite repositories", () => {
       severity: "major",
       priority: "high",
       confidence: 1,
-      url: project.baseUrl,
+      url: baseUrl,
     });
 
     await repositories.projects.save(project);

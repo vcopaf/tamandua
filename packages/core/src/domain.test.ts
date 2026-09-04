@@ -28,7 +28,7 @@ function makeSession() {
       mode: "manual",
       browser: "Chromium",
       resolution: "1440x900",
-      initialUrl: project.baseUrl,
+      initialUrl: projectInput.baseUrl,
     },
     now,
   );

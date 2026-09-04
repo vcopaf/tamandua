@@ -21,6 +21,20 @@ describe("local service", () => {
     });
     expect(invalid.status).toBe(400);
     expect((await invalid.json()).error.code).toBe("VALIDATION_ERROR");
+    const projectWithoutUrl = await fetch(
+      `http://127.0.0.1:${address.port}/projects`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: "Proyecto sin URL",
+          environment: "manual",
+          language: "es-BO",
+        }),
+      },
+    );
+    expect(projectWithoutUrl.status).toBe(201);
+    expect((await projectWithoutUrl.json()).baseUrl).toBeUndefined();
     await new Promise<void>((resolve, reject) =>
       app.close((error) => (error ? reject(error) : resolve())),
     );

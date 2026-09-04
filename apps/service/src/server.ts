@@ -37,7 +37,7 @@ import { LanguageToolProvider } from "./languagetool.js";
 const projectInput = z.object({
   name: z.string(),
   description: z.string().optional(),
-  baseUrl: z.string().url(),
+  baseUrl: z.string().url().optional(),
   environment: z.string(),
   language: z.string(),
 });

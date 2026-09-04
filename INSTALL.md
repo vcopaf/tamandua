@@ -100,15 +100,18 @@ Con el servicio iniciado y la extensión cargada:
 
 1. Abre la aplicación o página que quieres revisar.
 2. Abre Tamanduá desde el icono de la extensión.
-3. Pulsa **Iniciar revisión de esta página**.
-4. Tamanduá crea o reutiliza automáticamente un proyecto para ese dominio.
-5. Elige una opción:
+3. En **Proyectos**, selecciona un proyecto y pulsa **Abrir proyecto**, o pulsa **Crear proyecto**.
+4. Al crear un proyecto solo necesitas un nombre; la URL se toma de la pestaña al iniciar una revisión.
+5. Pulsa **Iniciar revisión de esta página**.
+6. Elige una opción:
    - **Iniciar revisión continua** para analizar texto mientras navegas.
    - **Ortografía** y luego **Revisar página** para analizar solo la pantalla actual.
    - **Inspección** y luego **Analizar pantalla** para ejecutar reglas de QA adicionales.
-6. Abre **Hallazgos** para confirmar, descartar o marcar duplicados.
-7. Captura evidencia solo si la necesitas.
-8. Descarga el reporte y pulsa **Finalizar revisión**.
+7. Abre **Hallazgos** para confirmar, descartar o marcar duplicados.
+8. Captura evidencia solo si la necesitas.
+9. Descarga el reporte y pulsa **Finalizar revisión**.
+
+Para volver al selector de proyectos, pulsa **Salir del proyecto**. Si hay una revisión activa, Tamanduá pedirá confirmación para finalizarla antes de salir.
 
 ## 6. Activar LanguageTool Local Opcional
 
@@ -126,10 +129,17 @@ Instala una versión LTS de Java, como Java 17 o posterior, si el comando no exi
 
 ### Descargar e iniciar LanguageTool
 
-1. Descarga la versión estable desde <https://languagetool.org/download/>.
-2. Descomprime el archivo descargado.
-3. Entra a la carpeta descomprimida que contiene `languagetool-server.jar`.
-4. Inicia el servidor en otra terminal:
+1. Descarga exactamente [LanguageTool-stable.zip](https://languagetool.org/download/LanguageTool-stable.zip). Es el paquete completo que incluye el servidor.
+2. No descargues `LanguageTool-stable.oxt`: es una extensión de LibreOffice y no sirve para Tamanduá.
+3. No necesitas descargar carpetas como `archive/`, `frequency-data/` o `language-training-data/`.
+4. Descomprime el archivo y entra a la carpeta resultante:
+
+```bash
+unzip LanguageTool-stable.zip
+cd LanguageTool-*
+```
+
+5. Inicia el servidor en otra terminal:
 
 ```bash
 java -cp languagetool-server.jar org.languagetool.server.HTTPServer --port 8081

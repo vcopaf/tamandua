@@ -6,7 +6,7 @@ Todo el procesamiento se ejecuta en tu equipo. Tamanduá no requiere cuentas, to
 
 ## Qué Hace
 
-- Inicia una revisión directamente desde la pestaña actual; no necesitas crear un proyecto ni escribir una URL antes de empezar.
+- Crea o abre un proyecto antes de revisar; no necesitas escribir una URL para crearlo.
 - Revisa texto visible para detectar ortografía, gramática y oportunidades de redacción.
 - Usa reglas locales y, opcionalmente, LanguageTool ejecutado en tu propia máquina.
 - Puede revisar mientras navegas mediante el modo de revisión continua.
@@ -23,10 +23,11 @@ Después de instalar:
 
 1. Inicia el servicio local de Tamanduá.
 2. Carga la extensión en Firefox o, alternativamente, Chromium.
-3. Abre la página que quieres revisar.
-4. Abre Tamanduá y pulsa **Iniciar revisión de esta página**.
-5. Pulsa **Iniciar revisión continua** o revisa una página manualmente.
-6. Decide qué candidatos son bugs y descarga el reporte al finalizar.
+3. Crea o abre un proyecto.
+4. Abre la página que quieres revisar.
+5. Pulsa **Iniciar revisión de esta página**.
+6. Pulsa **Iniciar revisión continua** o revisa una página manualmente.
+7. Decide qué candidatos son bugs y descarga el reporte al finalizar.
 
 ## Componentes
 

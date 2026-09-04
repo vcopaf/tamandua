@@ -54,6 +54,8 @@ async function main(args: string[]) {
     if (!projectId) throw new Error("Missing --project");
     const project = await repositories.projects.findById(projectId);
     if (!project) throw new Error("Project not found");
+    if (!project.baseUrl)
+      throw new Error("Project needs a base URL to start a CLI session");
     const session = await repositories.sessions.save(
       startSession({
         projectId,
@@ -107,6 +109,8 @@ async function main(args: string[]) {
       );
     const project = await repositories.projects.findById(projectId);
     if (!project) throw new Error("Project not found");
+    if (!project.baseUrl)
+      throw new Error("Project needs a base URL to run a scenario");
     const scenarioFile = await loadScenario(scenarioPath);
     const execution = await runScenario(
       { ...scenarioFile, id: scenarioPath, projectId },

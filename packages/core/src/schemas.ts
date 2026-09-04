@@ -19,7 +19,7 @@ export const projectSchema = z.object({
   id,
   name: z.string().trim().min(1),
   description: z.string().trim().optional(),
-  baseUrl: z.string().url(),
+  baseUrl: z.string().url().optional(),
   environment: z.string().trim().min(1),
   language: z.string().regex(/^[a-z]{2}(?:-[A-Z]{2})?$/),
   createdAt: dateTime,

@@ -4,7 +4,7 @@ Para instalar Tamanduá y realizar la primera revisión, sigue [INSTALL.md](../I
 
 ## Revisión Desde La Pestaña
 
-En la extensión, abre la página que quieres revisar y pulsa **Iniciar revisión de esta página**. Tamanduá crea o reutiliza automáticamente un proyecto para el dominio actual y usa la URL abierta como inicio de la sesión; no es necesario introducir una URL antes de revisar.
+En la extensión, abre o crea un proyecto desde la sección Proyecto y luego pulsa **Iniciar revisión de esta página**. Tamanduá usa la URL abierta como inicio de la sesión; no es necesario introducir una URL al crear el proyecto.
 
 Cada vez que analizas una pantalla, la sesión registra su URL, título y cantidad de análisis en el historial de páginas revisadas. La creación manual de proyectos permanece disponible para configurar un nombre, una URL o un contexto antes de comenzar.
 

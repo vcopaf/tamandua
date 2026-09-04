@@ -24,6 +24,15 @@ const refreshFindings =
 const saveCandidates =
   document.querySelector<HTMLButtonElement>("#save-candidates");
 const projectSelect = document.querySelector<HTMLSelectElement>("#project");
+const openProjectButton =
+  document.querySelector<HTMLButtonElement>("#open-project");
+const leaveProjectButton =
+  document.querySelector<HTMLButtonElement>("#leave-project");
+const projectPicker = document.querySelector<HTMLDivElement>("#project-picker");
+const projectWorkspace =
+  document.querySelector<HTMLDivElement>("#project-workspace");
+const openProjectName =
+  document.querySelector<HTMLHeadingElement>("#open-project-name");
 const startSessionButton =
   document.querySelector<HTMLButtonElement>("#start-session");
 const closeSessionButton =
@@ -55,16 +64,18 @@ const navigation = [
 ];
 const newProjectButton =
   document.querySelector<HTMLButtonElement>("#new-project");
-const projectForm = document.querySelector<HTMLDivElement>("#project-form");
 const projectName = document.querySelector<HTMLInputElement>("#project-name");
-const projectUrl = document.querySelector<HTMLInputElement>("#project-url");
+const projectDescription = document.querySelector<HTMLTextAreaElement>(
+  "#project-description",
+);
 const createProjectButton =
   document.querySelector<HTMLButtonElement>("#create-project");
+const cancelCreateProjectButton = document.querySelector<HTMLButtonElement>(
+  "#cancel-create-project",
+);
 const projectNameError = document.querySelector<HTMLParagraphElement>(
   "#project-name-error",
 );
-const projectUrlError =
-  document.querySelector<HTMLParagraphElement>("#project-url-error");
 const copyPromptButton =
   document.querySelector<HTMLButtonElement>("#copy-prompt");
 const aiResponse = document.querySelector<HTMLTextAreaElement>("#ai-response");
@@ -131,6 +142,7 @@ let lastCandidates: Array<Record<string, unknown>> = [];
 let selectedFindingId: string | undefined;
 let lastSnapshot: PageSnapshot | undefined;
 let currentProjectContext: ProjectContext | undefined;
+let openProjectId: string | undefined;
 
 for (const button of navigation) {
   button.addEventListener("click", () => {
@@ -147,9 +159,8 @@ function setStatus(message: string) {
   if (status) status.textContent = message;
 }
 
-function setFieldErrors(name: string, url: string) {
+function setFieldError(name: string) {
   if (projectNameError) projectNameError.textContent = name;
-  if (projectUrlError) projectUrlError.textContent = url;
 }
 
 async function getActiveSession() {
@@ -306,7 +317,48 @@ async function recordReviewedPage(snapshot: PageSnapshot) {
 }
 
 function hasProject() {
-  return Boolean(projectSelect?.value);
+  return Boolean(openProjectId);
+}
+
+async function openProject(id: string, name: string) {
+  openProjectId = id;
+  currentProjectContext = undefined;
+  if (projectSelect) projectSelect.value = id;
+  if (openProjectName) openProjectName.textContent = name;
+  if (projectPicker) projectPicker.hidden = true;
+  if (projectWorkspace) projectWorkspace.hidden = false;
+  await browser.storage.local.set({ openProjectId: id });
+  await loadProjectContext();
+  await loadHistory();
+  await updateAvailability();
+}
+
+async function leaveProject() {
+  const session = await getActiveSession();
+  if (session) {
+    if (
+      !window.confirm(
+        "Hay una revisión activa. ¿Finalizarla y salir del proyecto?",
+      )
+    )
+      return;
+    await fetch(
+      `http://127.0.0.1:4317/sessions/${encodeURIComponent(session.id)}/close`,
+      { method: "POST" },
+    );
+    await browser.storage.local.remove(["activeSession", "continuousReview"]);
+  }
+  openProjectId = undefined;
+  currentProjectContext = undefined;
+  if (projectSelect) projectSelect.value = "";
+  if (projectPicker) projectPicker.hidden = false;
+  if (projectWorkspace) projectWorkspace.hidden = true;
+  await browser.storage.local.remove("openProjectId");
+  await updateAvailability();
+  await loadReviewedPages();
+  await loadReviewSummary();
+  await loadContinuousReview();
+  setStatus("Selecciona un proyecto para continuar");
 }
 
 async function updateAvailability() {
@@ -314,13 +366,13 @@ async function updateAvailability() {
   const projectReady = hasProject();
   const sessionReady = Boolean(session);
   for (const button of navigation) {
-    const requiresReview = [
-      "inspect",
-      "spelling",
-      "findings-view",
-      "evidence",
-    ].includes(button.dataset.view ?? "");
-    button.disabled = requiresReview && (!projectReady || !sessionReady);
+    const view = button.dataset.view ?? "";
+    const requiresSession = ["inspect", "findings-view", "evidence"].includes(
+      view,
+    );
+    button.disabled =
+      (view === "spelling" && !projectReady) ||
+      (requiresSession && (!projectReady || !sessionReady));
   }
   if (analyze) analyze.disabled = !sessionReady;
   if (select) select.disabled = !sessionReady;
@@ -415,7 +467,15 @@ async function loadProjects() {
     ...projects.map((project) => new Option(project.name, project.id)),
   );
   const session = await getActiveSession();
-  if (projectSelect && session) projectSelect.value = session.projectId;
+  const stored = (await browser.storage.local.get("openProjectId"))
+    .openProjectId as string | undefined;
+  openProjectId = session?.projectId ?? stored;
+  const openProject = projects.find((project) => project.id === openProjectId);
+  if (projectSelect && openProject) projectSelect.value = openProject.id;
+  if (openProjectName && openProject)
+    openProjectName.textContent = openProject.name;
+  if (projectPicker) projectPicker.hidden = Boolean(openProject);
+  if (projectWorkspace) projectWorkspace.hidden = !openProject;
   await updateAvailability();
 }
 
@@ -430,7 +490,10 @@ async function loadHistory() {
     startedAt: string;
     findingsCount: number;
   }>;
-  const closed = sessions.filter((session) => session.status !== "active");
+  const closed = sessions.filter(
+    (session) =>
+      session.status !== "active" && session.projectId === openProjectId,
+  );
   if (!closed.length) {
     historyView.replaceChildren(
       Object.assign(document.createElement("p"), {
@@ -473,21 +536,24 @@ async function checkService() {
   );
 }
 
-newProjectButton?.addEventListener("click", () => {
-  if (projectForm) projectForm.hidden = !projectForm.hidden;
+newProjectButton?.addEventListener("click", () => showView("create-project"));
+
+cancelCreateProjectButton?.addEventListener("click", () => showView("session"));
+
+openProjectButton?.addEventListener("click", async () => {
+  const id = projectSelect?.value;
+  const name = projectSelect?.selectedOptions[0]?.text;
+  if (!id || !name) return setStatus("Selecciona un proyecto primero");
+  await openProject(id, name);
+  setStatus(`Proyecto abierto: ${name}`);
 });
+
+leaveProjectButton?.addEventListener("click", () => void leaveProject());
 
 createProjectButton?.addEventListener("click", async () => {
   const name = projectName?.value.trim() ?? "";
-  const baseUrl = projectUrl?.value.trim() ?? "";
-  setFieldErrors(
-    name ? "" : "El nombre es obligatorio.",
-    /^https?:\/\//.test(baseUrl)
-      ? ""
-      : "Introduce una URL válida (http o https).",
-  );
-  if (!name || !/^https?:\/\//.test(baseUrl))
-    return setStatus("Revisa los campos marcados");
+  setFieldError(name ? "" : "El nombre es obligatorio.");
+  if (!name) return setStatus("Revisa los campos marcados");
   let response: Response;
   try {
     response = await fetch("http://127.0.0.1:4317/projects", {
@@ -495,8 +561,8 @@ createProjectButton?.addEventListener("click", async () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         name,
-        baseUrl,
-        environment: "testing",
+        description: projectDescription?.value.trim() || undefined,
+        environment: "manual",
         language: "es-BO",
       }),
     });
@@ -509,18 +575,17 @@ createProjectButton?.addEventListener("click", async () => {
     };
     return setStatus(error.error?.message ?? "No se pudo crear el proyecto");
   }
-  setFieldErrors("", "");
+  const project = (await response.json()) as { id: string; name: string };
+  setFieldError("");
   await loadProjects();
   if (projectName) projectName.value = "";
-  if (projectUrl) projectUrl.value = "";
-  if (projectForm) projectForm.hidden = true;
-  setStatus("Proyecto creado");
+  if (projectDescription) projectDescription.value = "";
+  await openProject(project.id, project.name);
+  showView("session");
+  setStatus("Proyecto creado y abierto");
 });
 
 projectSelect?.addEventListener("change", () => {
-  void updateAvailability();
-  currentProjectContext = undefined;
-  void loadProjectContext();
   setStatus(
     projectSelect.value ? "Proyecto seleccionado" : "Selecciona un proyecto",
   );
@@ -1112,6 +1177,7 @@ async function registerCandidates() {
 }
 
 startSessionButton?.addEventListener("click", async () => {
+  if (!openProjectId) return setStatus("Abre un proyecto antes de iniciar");
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
   if (!tab?.url) return setStatus("Abre una página web antes de iniciar");
   let currentUrl: URL;
@@ -1124,36 +1190,16 @@ startSessionButton?.addEventListener("click", async () => {
     return setStatus("Abre una página http o https antes de iniciar");
   const projects = (await fetch("http://127.0.0.1:4317/projects").then(
     (response) => response.json(),
-  )) as Array<{ id: string; name: string; baseUrl: string }>;
-  let project = projects.find((item) => item.baseUrl === currentUrl.origin);
-  if (!project) {
-    const response = await fetch("http://127.0.0.1:4317/projects", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        name: currentUrl.hostname,
-        description: "Proyecto creado automáticamente desde una revisión.",
-        baseUrl: currentUrl.origin,
-        environment: "navegación",
-        language: "es-BO",
-      }),
-    });
-    if (!response.ok)
-      return setStatus("No se pudo crear el proyecto automático");
-    project = (await response.json()) as {
-      id: string;
-      name: string;
-      baseUrl: string;
-    };
-    await loadProjects();
-  }
-  if (projectSelect) projectSelect.value = project.id;
+  )) as Array<{ id: string; name: string }>;
+  const project = projects.find((item) => item.id === openProjectId);
+  if (!project) return setStatus("El proyecto abierto ya no existe");
+  if (projectSelect) projectSelect.value = openProjectId;
   await loadProjectContext();
   const response = await fetch("http://127.0.0.1:4317/sessions", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      projectId: project.id,
+      projectId: openProjectId,
       mode: "manual",
       browser: navigator.userAgent.includes("Firefox") ? "Firefox" : "Chromium",
       resolution: `${window.screen.width}x${window.screen.height}`,
@@ -1173,7 +1219,7 @@ startSessionButton?.addEventListener("click", async () => {
   await loadContinuousReview();
   await loadReviewedPages();
   await loadReviewSummary();
-  showView("inspect");
+  showView("spelling");
 });
 
 continuousReviewButton?.addEventListener("click", async () => {

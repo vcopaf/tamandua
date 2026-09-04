@@ -37,14 +37,17 @@ export function createRepositories(handle: DatabaseHandle) {
           projectSchema.parse({
             ...row,
             description: row.description ?? undefined,
+            baseUrl: row.baseUrl || undefined,
           }),
         );
       },
       async save(project: Project) {
         const value = projectSchema.parse(project);
-        await db
-          .insert(projects)
-          .values({ ...value, description: value.description ?? null });
+        await db.insert(projects).values({
+          ...value,
+          baseUrl: value.baseUrl ?? "",
+          description: value.description ?? null,
+        });
         return value;
       },
       async findById(id: string) {
@@ -57,6 +60,7 @@ export function createRepositories(handle: DatabaseHandle) {
           ? projectSchema.parse({
               ...row,
               description: row.description ?? undefined,
+              baseUrl: row.baseUrl || undefined,
             })
           : undefined;
       },

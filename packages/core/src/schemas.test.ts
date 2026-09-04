@@ -23,6 +23,18 @@ describe("domain schemas", () => {
     expect(result.success).toBe(true);
   });
 
+  it("allows a project without a URL before its first review", () => {
+    const result = projectSchema.safeParse({
+      id: "project-1",
+      name: "Portal ciudadano",
+      environment: "testing",
+      language: "es-BO",
+      createdAt: date,
+    });
+
+    expect(result.success).toBe(true);
+  });
+
   it("rejects invalid project URLs and languages", () => {
     const result = projectSchema.safeParse({
       id: "project-1",
