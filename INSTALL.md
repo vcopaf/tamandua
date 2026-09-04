@@ -104,8 +104,8 @@ Con el servicio iniciado y la extensión cargada:
 4. Al crear un proyecto solo necesitas un nombre; la URL se toma de la pestaña al iniciar una revisión.
 5. Pulsa **Iniciar revisión de esta página**.
 6. Elige una opción:
-   - **Iniciar revisión continua** para analizar texto mientras navegas.
-   - **Ortografía** y luego **Revisar página** para analizar solo la pantalla actual.
+   - En **Ortografía**, **Analizar mientras navego** para revisar texto durante la navegación.
+   - En **Ortografía**, **Revisar esta página** para analizar solo la pantalla actual.
    - **Inspección** y luego **Analizar pantalla** para ejecutar reglas de QA adicionales.
 7. Abre **Hallazgos** para confirmar, descartar o marcar duplicados.
 8. Captura evidencia solo si la necesitas.

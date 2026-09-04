@@ -1,3 +1,4 @@
+import "../../utils/tailwind.css";
 import { createAnalysisPrompt, parseAIResponse } from "@tamandua/core/ai";
 import type { ElementSnapshot, PageSnapshot } from "@tamandua/core/schemas";
 import type { ExtensionMessage } from "../../utils/messages.js";

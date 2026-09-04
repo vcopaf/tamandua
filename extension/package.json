@@ -10,6 +10,15 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },
-  "dependencies": { "@tamandua/core": "workspace:*", "wxt": "0.21.2" },
-  "devDependencies": { "@types/chrome": "^0.0.287", "typescript": "^5.7.2" }
+  "dependencies": {
+    "@tamandua/core": "workspace:*",
+    "wxt": "0.21.2"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/chrome": "^0.0.287",
+    "happy-dom": "^20.14.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.7.2"
+  }
 }

@@ -1,4 +1,6 @@
+import type { TextBlock } from "@tamandua/core";
 import type { ExtensionMessage } from "../utils/messages.js";
+import { extractTextBlocks } from "../utils/text-blocks.js";
 
 type ElementSnapshot = {
   tagName: string;
@@ -105,41 +107,11 @@ function snapshotElement(element: Element): ElementSnapshot {
   };
 }
 
-function isFrameworkNoise(text: string): boolean {
-  return /self\.__next_f|webpackJsonp|__react|react\.development|ng-version|vue-devtools|light_mode|expand_more/i.test(
-    text,
-  );
-}
-
-type TextBlock = {
-  text: string;
-  source: "text" | "heading" | "control";
-  selector: string;
-};
-
 function visibleTextBlocks(): TextBlock[] {
-  return [...document.querySelectorAll("body *")]
-    .filter((element) => element.children.length === 0)
-    .map((element) => ({ element, text: element.textContent?.trim() ?? "" }))
-    .filter(({ element, text }) => {
-      const snapshot = snapshotElement(element);
-      return (
-        Boolean(text) &&
-        !isFrameworkNoise(text) &&
-        snapshot.visible &&
-        snapshot.inViewport
-      );
-    })
-    .map(({ element, text }) => ({
-      text,
-      selector: selectorFor(element),
-      source: element.matches("h1, h2, h3")
-        ? ("heading" as const)
-        : element.matches("button, input, select, textarea")
-          ? ("control" as const)
-          : ("text" as const),
-    }))
-    .slice(0, 200);
+  return extractTextBlocks(document, selectorFor, (element) => {
+    const snapshot = snapshotElement(element);
+    return snapshot.visible && snapshot.inViewport;
+  });
 }
 
 function pageSnapshot() {
@@ -152,7 +124,9 @@ function pageSnapshot() {
         const snapshot = snapshotElement(element);
         return (
           Boolean(text) &&
-          !isFrameworkNoise(text) &&
+          !/self\.__next_f|webpackJsonp|__react|react\.development|ng-version|vue-devtools|light_mode|expand_more/i.test(
+            text,
+          ) &&
           snapshot.visible &&
           snapshot.inViewport
         );

@@ -1,0 +1,158 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #172033;
+  --color-muted: #667085;
+  --color-canvas: #f6f7fb;
+  --color-brand: #635bff;
+  --color-brand-dark: #4f46e5;
+  --color-line: #e4e7ec;
+}
+
+@layer base {
+  body {
+    @apply m-0 min-h-screen bg-canvas font-sans text-sm text-slate-800 antialiased;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand;
+  }
+
+  input,
+  select,
+  textarea {
+    @apply w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm shadow-sm outline-none transition placeholder:text-slate-400 focus:border-brand focus:ring-3 focus:ring-brand/15;
+  }
+
+  textarea {
+    @apply resize-y;
+  }
+}
+
+@layer components {
+  .app-nav {
+    @apply sticky top-0 z-10 grid grid-cols-3 gap-1 border-b border-slate-800 bg-ink px-3 py-3 shadow-lg shadow-slate-950/15;
+  }
+
+  .app-nav button {
+    @apply rounded-lg border-0 bg-transparent px-2 py-2 text-xs font-semibold text-slate-300 transition hover:bg-white/10 hover:text-white;
+  }
+
+  .app-nav button.active {
+    @apply bg-white text-ink shadow-sm;
+  }
+
+  .app-main {
+    @apply mx-auto max-w-xl px-4 py-5;
+  }
+
+  .status {
+    @apply mb-4 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 shadow-sm;
+  }
+
+  .status.ok {
+    @apply border-emerald-200 bg-emerald-50 text-emerald-800;
+  }
+
+  .status.error {
+    @apply border-rose-200 bg-rose-50 text-rose-800;
+  }
+
+  .view {
+    @apply hidden;
+  }
+
+  .view.active {
+    @apply block;
+  }
+
+  .card {
+    @apply mb-4 rounded-2xl border border-line bg-white p-4 shadow-sm;
+  }
+
+  .card-accent {
+    @apply border-brand/20 bg-gradient-to-br from-indigo-50 via-white to-white;
+  }
+
+  h2 {
+    @apply m-0 text-base font-bold tracking-tight text-ink;
+  }
+
+  h3 {
+    @apply m-0 text-sm font-bold text-ink;
+  }
+
+  .eyebrow {
+    @apply mb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-brand;
+  }
+
+  .hint {
+    @apply my-2 text-xs leading-5 text-muted;
+  }
+
+  button {
+    @apply mt-2 w-full rounded-xl border border-brand bg-brand px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400;
+  }
+
+  button.secondary {
+    @apply border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50;
+  }
+
+  button.danger {
+    @apply border-rose-600 bg-rose-600 hover:bg-rose-700;
+  }
+
+  .field-error {
+    @apply my-1 text-xs text-rose-700;
+  }
+
+  .empty {
+    @apply rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-center text-xs leading-5 text-muted;
+  }
+
+  article {
+    @apply my-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm;
+  }
+
+  .badge {
+    @apply mb-2 inline-flex rounded-full bg-indigo-50 px-2 py-1 text-[10px] font-bold tracking-wide text-indigo-700;
+  }
+
+  .finding-actions {
+    @apply mt-3 grid grid-cols-2 gap-2;
+  }
+
+  .finding-actions button {
+    @apply m-0 px-2 py-2 text-xs;
+  }
+
+  .finding-actions button:first-child {
+    @apply col-span-2;
+  }
+
+  .filters {
+    @apply grid grid-cols-2 gap-2;
+  }
+
+  .inline-actions {
+    @apply grid grid-cols-2 gap-2;
+  }
+
+  .inline-actions button {
+    @apply m-0;
+  }
+
+  .review-toggle {
+    @apply mt-4 rounded-xl border border-indigo-100 bg-indigo-50 p-3;
+  }
+}

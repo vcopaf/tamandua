@@ -1,6 +1,8 @@
+import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "wxt";
 
 export default defineConfig({
+  vite: () => ({ plugins: [tailwindcss()] }),
   manifest: {
     name: "Tamanduá QA",
     description: "Revisión manual asistida por Tamanduá",

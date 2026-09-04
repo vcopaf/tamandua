@@ -26,7 +26,7 @@ Después de instalar:
 3. Crea o abre un proyecto.
 4. Abre la página que quieres revisar.
 5. Pulsa **Iniciar revisión de esta página**.
-6. Pulsa **Iniciar revisión continua** o revisa una página manualmente.
+6. Abre **Ortografía** y pulsa **Analizar mientras navego** o **Revisar esta página**.
 7. Decide qué candidatos son bugs y descarga el reporte al finalizar.
 
 ## Componentes

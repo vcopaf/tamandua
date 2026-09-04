@@ -10,13 +10,13 @@ Cada vez que analizas una pantalla, la sesión registra su URL, título y cantid
 
 ## Revisión Continua
 
-Con una revisión activa, pulsa **Iniciar revisión continua** y navega normalmente. Tamanduá espera 1.5 segundos después de una carga o cambio de ruta y revisa texto visible para detectar candidatos de ortografía, gramática y redacción. Los candidatos nuevos se agregan a la Bandeja de revisión; no se toman capturas automáticas ni se interrumpe la navegación.
+Con una revisión activa, abre **Ortografía** y pulsa **Analizar mientras navego**. Tamanduá espera 1.5 segundos después de una carga o cambio de ruta y revisa texto visible para detectar candidatos de ortografía, gramática y redacción. Los candidatos nuevos se agregan a la Bandeja de revisión; no se toman capturas automáticas ni se interrumpe la navegación.
 
 El modo permanece activo aunque cierres la barra lateral. Pulsa **Detener revisión continua** o finaliza la revisión para desactivarlo. Los resultados repetidos se deduplican por sesión, origen, regla, URL, selector y texto.
 
 ## Revisión De Redacción Local
 
-Cada proyecto conserva un contexto lingüístico con idioma, términos permitidos, formas preferidas y notas de revisión. Desde la extensión, configura el contexto en Proyecto y abre Ortografía para revisar el texto visible de la pestaña.
+Cada proyecto conserva un contexto lingüístico con idioma, términos permitidos, formas preferidas y notas de revisión. Desde la extensión, configura el contexto en Proyecto y abre Ortografía para revisar el texto visible de la pestaña. La extracción excluye iconos, texto oculto para accesibilidad, elementos no traducibles y tokens técnicos aislados antes de consultar las reglas lingüísticas.
 
 Tamanduá siempre aplica reglas locales. Para activar comprobaciones adicionales de gramática y estilo en español, inicia LanguageTool en la misma máquina y puerto local:
 
