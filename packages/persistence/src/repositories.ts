@@ -3,6 +3,7 @@ import {
   findingSchema,
   projectContextSchema,
   projectSchema,
+  sessionPageSchema,
   sessionSchema,
 } from "@tamandua/core";
 import type {
@@ -11,6 +12,7 @@ import type {
   Project,
   ProjectContext,
   Session,
+  SessionPage,
 } from "@tamandua/core";
 import { eq } from "drizzle-orm";
 import type { DatabaseHandle } from "./database.js";
@@ -19,6 +21,7 @@ import {
   findings,
   projectContexts,
   projects,
+  sessionPages,
   sessions,
 } from "./schema.js";
 
@@ -107,6 +110,42 @@ export function createRepositories(handle: DatabaseHandle) {
       async update(session: Session) {
         const value = sessionSchema.parse(session);
         await db.update(sessions).set(value).where(eq(sessions.id, value.id));
+        return value;
+      },
+    },
+    sessionPages: {
+      async listBySession(sessionId: string) {
+        return (
+          await db
+            .select()
+            .from(sessionPages)
+            .where(eq(sessionPages.sessionId, sessionId))
+        ).map((row) => sessionPageSchema.parse(row));
+      },
+      async record(page: SessionPage) {
+        const value = sessionPageSchema.parse(page);
+        const existing = (
+          await db
+            .select()
+            .from(sessionPages)
+            .where(eq(sessionPages.sessionId, value.sessionId))
+        )
+          .map((row) => sessionPageSchema.parse(row))
+          .find((item) => item.url === value.url);
+        if (existing) {
+          const updated = sessionPageSchema.parse({
+            ...existing,
+            title: value.title,
+            lastSeenAt: value.lastSeenAt,
+            analysisCount: existing.analysisCount + 1,
+          });
+          await db
+            .update(sessionPages)
+            .set(updated)
+            .where(eq(sessionPages.id, updated.id));
+          return updated;
+        }
+        await db.insert(sessionPages).values(value);
         return value;
       },
     },

@@ -9,6 +9,15 @@ const select = document.querySelector<HTMLButtonElement>("#select");
 const reloadTab = document.querySelector<HTMLButtonElement>("#reload-tab");
 const capture = document.querySelector<HTMLButtonElement>("#capture");
 const filter = document.querySelector<HTMLSelectElement>("#finding-filter");
+const originFilter = document.querySelector<HTMLSelectElement>(
+  "#finding-origin-filter",
+);
+const categoryFilter = document.querySelector<HTMLSelectElement>(
+  "#finding-category-filter",
+);
+const severityFilter = document.querySelector<HTMLSelectElement>(
+  "#finding-severity-filter",
+);
 const findingsView = document.querySelector<HTMLDivElement>("#findings");
 const refreshFindings =
   document.querySelector<HTMLButtonElement>("#refresh-findings");
@@ -22,6 +31,7 @@ const closeSessionButton =
 const sessionView = document.querySelector<HTMLParagraphElement>("#session-id");
 const sessionSummary =
   document.querySelector<HTMLDivElement>("#session-summary");
+const reviewedPages = document.querySelector<HTMLDivElement>("#reviewed-pages");
 const historyView = document.querySelector<HTMLDivElement>("#history");
 const loadHistoryButton =
   document.querySelector<HTMLButtonElement>("#load-history");
@@ -61,6 +71,21 @@ const spellingSummary =
   document.querySelector<HTMLParagraphElement>("#spelling-summary");
 const spellingFindings =
   document.querySelector<HTMLDivElement>("#spelling-findings");
+const manualSelection =
+  document.querySelector<HTMLParagraphElement>("#manual-selection");
+const manualTitle = document.querySelector<HTMLInputElement>("#manual-title");
+const manualDescription = document.querySelector<HTMLTextAreaElement>(
+  "#manual-description",
+);
+const manualCategory =
+  document.querySelector<HTMLSelectElement>("#manual-category");
+const manualSeverity =
+  document.querySelector<HTMLSelectElement>("#manual-severity");
+const manualPriority =
+  document.querySelector<HTMLSelectElement>("#manual-priority");
+const createManualFinding = document.querySelector<HTMLButtonElement>(
+  "#create-manual-finding",
+);
 type ProjectContext = {
   primaryLanguage: string;
   enabledLanguages: string[];
@@ -113,6 +138,60 @@ async function getActiveSession() {
     | undefined;
 }
 
+async function loadReviewedPages() {
+  if (!reviewedPages) return;
+  const session = await getActiveSession();
+  if (!session) {
+    reviewedPages.replaceChildren(
+      Object.assign(document.createElement("p"), {
+        className: "empty",
+        textContent: "Aún no hay páginas revisadas.",
+      }),
+    );
+    return;
+  }
+  const pages = (await fetch(
+    `http://127.0.0.1:4317/sessions/${encodeURIComponent(session.id)}/pages`,
+  )
+    .then((response) => (response.ok ? response.json() : []))
+    .catch(() => [])) as Array<{
+    url: string;
+    title: string;
+    analysisCount: number;
+  }>;
+  if (!pages.length) {
+    reviewedPages.replaceChildren(
+      Object.assign(document.createElement("p"), {
+        className: "empty",
+        textContent: "Aún no analizaste ninguna página.",
+      }),
+    );
+    return;
+  }
+  reviewedPages.replaceChildren(
+    ...pages.map((page) => {
+      const item = document.createElement("p");
+      item.className = "hint";
+      item.textContent = `${page.title || page.url} · ${page.analysisCount} análisis`;
+      return item;
+    }),
+  );
+}
+
+async function recordReviewedPage(snapshot: PageSnapshot) {
+  const session = await getActiveSession();
+  if (!session) return;
+  await fetch(
+    `http://127.0.0.1:4317/sessions/${encodeURIComponent(session.id)}/pages`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ url: snapshot.url, title: snapshot.title }),
+    },
+  ).catch(() => undefined);
+  await loadReviewedPages();
+}
+
 function hasProject() {
   return Boolean(projectSelect?.value);
 }
@@ -136,8 +215,7 @@ async function updateAvailability() {
   if (refreshFindings) refreshFindings.disabled = !sessionReady;
   if (saveCandidates) saveCandidates.disabled = !sessionReady;
   if (checkSpellingButton) checkSpellingButton.disabled = !sessionReady;
-  if (startSessionButton)
-    startSessionButton.hidden = !projectReady || sessionReady;
+  if (startSessionButton) startSessionButton.hidden = sessionReady;
   if (closeSessionButton) closeSessionButton.hidden = !sessionReady;
 }
 
@@ -353,6 +431,7 @@ analyze?.addEventListener("click", async () => {
       `La pestaña no devolvió un snapshot válido (${tab.url ?? "URL desconocida"}). Recarga la pestaña e inténtalo de nuevo.`,
     );
   lastSnapshot = snapshot as PageSnapshot;
+  await recordReviewedPage(lastSnapshot);
   if (copyPromptButton) copyPromptButton.disabled = false;
   await fetch("http://127.0.0.1:4317/snapshots", {
     method: "POST",
@@ -609,11 +688,21 @@ function renderFindings(items: Array<Record<string, unknown>>) {
     ...items.map((finding) => {
       const item = document.createElement("article");
       const label = document.createElement("span");
-      label.textContent = `${String(finding.title ?? "Hallazgo")} [${String(finding.status ?? "candidate")}]`;
-      item.append(label);
+      const labels: Record<string, string> = {
+        candidate: "PENDIENTE",
+        confirmed: "CONFIRMADO",
+        discarded: "NO ES BUG",
+        duplicate: "DUPLICADO",
+        resolved: "RESUELTO",
+      };
+      label.className = "badge";
+      label.textContent = labels[String(finding.status)] ?? "PENDIENTE";
+      const title = document.createElement("h3");
+      title.textContent = String(finding.title ?? "Hallazgo");
+      item.append(label, title);
       const summary = document.createElement("p");
       summary.className = "hint";
-      summary.textContent = `${String(finding.category ?? "other")} · ${String(finding.severity ?? "minor")} · ${String(finding.priority ?? "medium")}`;
+      summary.textContent = `${String(finding.origin ?? "manual")} · ${String(finding.category ?? "other")} · ${String(finding.severity ?? "minor")} · prioridad ${String(finding.priority ?? "medium")}`;
       item.append(summary);
       const element = finding.element as
         | { selector?: string; visibleText?: string }
@@ -648,16 +737,21 @@ function renderFindings(items: Array<Record<string, unknown>>) {
       if (typeof finding.id === "string") {
         item.addEventListener("click", () => {
           selectedFindingId = finding.id as string;
-          setStatus("Hallazgo seleccionado para evidencia");
         });
+        const actions = document.createElement("div");
+        actions.className = "finding-actions";
+        const currentStatus = String(finding.status ?? "candidate");
         for (const [action, statusValue] of [
-          ["Confirmar", "confirmed"],
-          ["Descartar", "discarded"],
+          ["Confirmar como bug", "confirmed"],
+          ["No es bug", "discarded"],
+          ["Marcar duplicado", "duplicate"],
         ] as const) {
+          if (currentStatus !== "candidate") continue;
           const button = document.createElement("button");
+          if (statusValue !== "confirmed") button.className = "secondary";
           button.textContent = action;
           button.addEventListener("click", async () => {
-            await fetch(
+            const response = await fetch(
               `http://127.0.0.1:4317/findings/${encodeURIComponent(finding.id as string)}`,
               {
                 method: "PATCH",
@@ -665,20 +759,88 @@ function renderFindings(items: Array<Record<string, unknown>>) {
                 body: JSON.stringify({ status: statusValue }),
               },
             );
-            if (status) status.textContent = `Hallazgo ${statusValue}`;
+            if (!response.ok)
+              return setStatus("No se pudo actualizar el hallazgo");
+            setStatus(
+              `Hallazgo marcado como ${labels[statusValue] ?? statusValue}`,
+            );
+            await refreshFindings?.click();
           });
-          item.append(button);
+          actions.append(button);
         }
+        const evidence = document.createElement("button");
+        evidence.className = "secondary";
+        evidence.textContent = "Capturar evidencia";
+        evidence.addEventListener(
+          "click",
+          () =>
+            void captureFindingEvidence(
+              finding.id as string,
+              element?.selector,
+            ),
+        );
+        actions.append(evidence);
+        item.append(actions);
         const detail = document.createElement("details");
         const detailSummary = document.createElement("summary");
-        detailSummary.textContent = "Ver detalle";
-        const description = document.createElement("p");
-        description.textContent = String(finding.description ?? "");
-        detail.append(detailSummary, description);
+        detailSummary.textContent = "Editar detalle";
+        const titleInput = document.createElement("input");
+        titleInput.value = String(finding.title ?? "");
+        const description = document.createElement("textarea");
+        description.rows = 4;
+        description.value = String(finding.description ?? "");
+        detail.append(detailSummary, titleInput, description);
+        if (!["discarded", "duplicate"].includes(currentStatus)) {
+          const save = document.createElement("button");
+          save.className = "secondary";
+          save.textContent = "Guardar cambios";
+          save.addEventListener("click", async () => {
+            const response = await fetch(
+              `http://127.0.0.1:4317/findings/${encodeURIComponent(finding.id as string)}`,
+              {
+                method: "PATCH",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({
+                  title: titleInput.value.trim(),
+                  description: description.value.trim(),
+                }),
+              },
+            );
+            if (!response.ok) return setStatus("No se pudo editar el hallazgo");
+            setStatus("Hallazgo actualizado");
+            await refreshFindings?.click();
+          });
+          detail.append(save);
+        }
         item.append(detail);
       }
       return item;
     }),
+  );
+}
+
+async function captureFindingEvidence(findingId: string, selector?: string) {
+  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.windowId || !tab.url)
+    return setStatus("No se encontró una pestaña activa");
+  const dataUrl = await browser.tabs.captureVisibleTab(tab.windowId, {
+    format: "png",
+  });
+  const response = await fetch("http://127.0.0.1:4317/evidence", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      findingId,
+      type: selector ? "element-screenshot" : "full-page-screenshot",
+      dataUrl,
+      url: tab.url,
+      browser: "Chromium",
+      resolution: `${window.screen.width}x${window.screen.height}`,
+      ...(selector ? { selector } : {}),
+    }),
+  });
+  setStatus(
+    response.ok ? "Evidencia guardada" : "No se pudo guardar la evidencia",
   );
 }
 
@@ -690,13 +852,28 @@ refreshFindings?.addEventListener("click", async () => {
   );
   const findings = (await response.json()) as Array<Record<string, unknown>>;
   renderFindings(
-    filter?.value && filter.value !== "all"
-      ? findings.filter((finding) => finding.status === filter.value)
-      : findings,
+    findings.filter(
+      (finding) =>
+        (!filter?.value ||
+          filter.value === "all" ||
+          finding.status === filter.value) &&
+        (!originFilter?.value ||
+          originFilter.value === "all" ||
+          finding.origin === originFilter.value) &&
+        (!categoryFilter?.value ||
+          categoryFilter.value === "all" ||
+          finding.category === categoryFilter.value) &&
+        (!severityFilter?.value ||
+          severityFilter.value === "all" ||
+          finding.severity === severityFilter.value),
+    ),
   );
 });
 
 filter?.addEventListener("change", () => refreshFindings?.click());
+originFilter?.addEventListener("change", () => refreshFindings?.click());
+categoryFilter?.addEventListener("change", () => refreshFindings?.click());
+severityFilter?.addEventListener("change", () => refreshFindings?.click());
 
 saveCandidates?.addEventListener("click", async () => {
   await registerCandidates();
@@ -716,35 +893,67 @@ async function registerCandidates() {
       ? "Candidatos registrados"
       : "No se encontraron candidatos",
   );
+  lastCandidates = [];
   await refreshFindings?.click();
 }
 
 startSessionButton?.addEventListener("click", async () => {
-  if (!projectSelect?.value) return setStatus("Selecciona un proyecto");
+  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.url) return setStatus("Abre una página web antes de iniciar");
+  let currentUrl: URL;
+  try {
+    currentUrl = new URL(tab.url);
+  } catch {
+    return setStatus("La pestaña actual no tiene una URL compatible");
+  }
+  if (!/^https?:$/.test(currentUrl.protocol))
+    return setStatus("Abre una página http o https antes de iniciar");
   const projects = (await fetch("http://127.0.0.1:4317/projects").then(
     (response) => response.json(),
-  )) as Array<{ id: string; baseUrl: string }>;
-  const project = projects.find((item) => item.id === projectSelect.value);
-  if (!project) return setStatus("Proyecto no encontrado");
+  )) as Array<{ id: string; name: string; baseUrl: string }>;
+  let project = projects.find((item) => item.baseUrl === currentUrl.origin);
+  if (!project) {
+    const response = await fetch("http://127.0.0.1:4317/projects", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: currentUrl.hostname,
+        description: "Proyecto creado automáticamente desde una revisión.",
+        baseUrl: currentUrl.origin,
+        environment: "navegación",
+        language: "es-BO",
+      }),
+    });
+    if (!response.ok)
+      return setStatus("No se pudo crear el proyecto automático");
+    project = (await response.json()) as {
+      id: string;
+      name: string;
+      baseUrl: string;
+    };
+    await loadProjects();
+  }
+  if (projectSelect) projectSelect.value = project.id;
+  await loadProjectContext();
   const response = await fetch("http://127.0.0.1:4317/sessions", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       projectId: project.id,
       mode: "manual",
-      browser: "Firefox",
+      browser: navigator.userAgent.includes("Firefox") ? "Firefox" : "Chromium",
       resolution: `${window.screen.width}x${window.screen.height}`,
-      initialUrl: project.baseUrl,
+      initialUrl: currentUrl.href,
     }),
   });
   const session = (await response.json()) as { id: string; projectId: string };
   await browser.storage.local.set({ activeSession: session });
   if (sessionView) sessionView.textContent = `Sesión activa: ${session.id}`;
   if (sessionSummary)
-    sessionSummary.textContent =
-      "Revisión activa. Ya puedes analizar la pestaña actual.";
-  setStatus("Revisión iniciada");
+    sessionSummary.textContent = `Revisión activa para ${project.name}. Ya puedes analizar la pestaña actual.`;
+  setStatus("Revisión iniciada desde la pestaña actual");
   await updateAvailability();
+  await loadReviewedPages();
   showView("inspect");
 });
 
@@ -762,6 +971,7 @@ closeSessionButton?.addEventListener("click", async () => {
       "Revisión finalizada. Puedes consultar sus hallazgos en Historial.";
   setStatus("Revisión finalizada");
   await updateAvailability();
+  await loadReviewedPages();
   await loadHistory();
   showView("session");
 });
@@ -786,6 +996,11 @@ browser.runtime.onMessage.addListener((message: ExtensionMessage) => {
   if (result) result.textContent = JSON.stringify(message.element, null, 2);
   selectedElement = message.element as { selector?: string };
   selectedFindingId = undefined;
+  const selected = message.element as ElementSnapshot;
+  if (manualSelection)
+    manualSelection.textContent = selected.selector
+      ? `Elemento seleccionado: ${selected.selector}`
+      : "Elemento seleccionado";
   if (lastSnapshot) {
     const element = message.element as ElementSnapshot;
     lastSnapshot = {
@@ -799,34 +1014,51 @@ browser.runtime.onMessage.addListener((message: ExtensionMessage) => {
   if (status) status.textContent = "Elemento seleccionado";
 });
 
+createManualFinding?.addEventListener("click", async () => {
+  const sessionId = (await getActiveSession())?.id;
+  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+  const title = manualTitle?.value.trim() ?? "";
+  const description = manualDescription?.value.trim() ?? "";
+  if (!sessionId || !tab?.url)
+    return setStatus("Inicia una revisión y selecciona una página primero");
+  if (!title || !description)
+    return setStatus("El título y la descripción son obligatorios");
+  const element = selectedElement as ElementSnapshot | undefined;
+  const response = await fetch("http://127.0.0.1:4317/findings", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      sessionId,
+      origin: "manual",
+      category: manualCategory?.value ?? "functional",
+      title,
+      description,
+      severity: manualSeverity?.value ?? "minor",
+      priority: manualPriority?.value ?? "medium",
+      confidence: 1,
+      url: tab.url,
+      ...(element?.selector
+        ? {
+            selector: element.selector,
+            elementText: element.visibleText,
+            elementTag: element.tagName,
+          }
+        : {}),
+    }),
+  });
+  if (!response.ok) return setStatus("No se pudo registrar el hallazgo manual");
+  if (manualTitle) manualTitle.value = "";
+  if (manualDescription) manualDescription.value = "";
+  setStatus("Hallazgo manual registrado como pendiente de revisión");
+  showView("findings-view");
+  await refreshFindings?.click();
+});
+
 capture?.addEventListener("click", async () => {
   const findingId = selectedFindingId;
   if (!findingId)
     return setStatus("Selecciona primero un hallazgo desde Hallazgos");
-  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.windowId || !tab.url) return;
-  const dataUrl = await browser.tabs.captureVisibleTab(tab.windowId, {
-    format: "png",
-  });
-  const response = await fetch("http://127.0.0.1:4317/evidence", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      findingId,
-      type: selectedElement ? "element-screenshot" : "full-page-screenshot",
-      dataUrl,
-      url: tab.url,
-      browser: "Chromium",
-      resolution: `${window.screen.width}x${window.screen.height}`,
-      ...(selectedElement?.selector
-        ? { selector: selectedElement.selector }
-        : {}),
-    }),
-  });
-  if (status)
-    status.textContent = response.ok
-      ? "Evidencia guardada"
-      : "No se pudo guardar la evidencia";
+  await captureFindingEvidence(findingId, selectedElement?.selector);
 });
 
 await checkService();
@@ -837,3 +1069,4 @@ const session = await getActiveSession();
 if (sessionView && session)
   sessionView.textContent = `Sesión activa: ${session.id}`;
 await updateAvailability();
+await loadReviewedPages();

@@ -96,12 +96,26 @@ describe("local service", () => {
       }),
     });
     const session = (await sessionResponse.json()) as { id: string };
+    const pageResponse = await fetch(`${base}/sessions/${session.id}/pages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        url: `${project.baseUrl}/registro`,
+        title: "Registro",
+      }),
+    });
+    expect(pageResponse.status).toBe(201);
+    const pagesResponse = await fetch(`${base}/sessions/${session.id}/pages`);
+    expect(await pagesResponse.json()).toEqual([
+      expect.objectContaining({ url: `${project.baseUrl}/registro` }),
+    ]);
     const findingResponse = await fetch(`${base}/findings`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         sessionId: session.id,
         origin: "rule",
+        ruleId: "FORM_INPUT_WITHOUT_LABEL",
         category: "form",
         title: "Campo sin label",
         description: "Falta label",
@@ -116,6 +130,24 @@ describe("local service", () => {
       status: string;
     };
     expect(finding.status).toBe("candidate");
+    const duplicateResponse = await fetch(`${base}/findings`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        sessionId: session.id,
+        origin: "rule",
+        ruleId: "FORM_INPUT_WITHOUT_LABEL",
+        category: "form",
+        title: "Campo sin label",
+        description: "Falta label",
+        severity: "major",
+        priority: "high",
+        confidence: 1,
+        url: project.baseUrl,
+      }),
+    });
+    expect(duplicateResponse.status).toBe(200);
+    expect((await duplicateResponse.json()).duplicate).toBe(true);
     const updateResponse = await fetch(`${base}/findings/${finding.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },

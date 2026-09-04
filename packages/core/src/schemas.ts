@@ -64,6 +64,17 @@ export const sessionSchema = z.object({
 });
 export type Session = z.infer<typeof sessionSchema>;
 
+export const sessionPageSchema = z.object({
+  id,
+  sessionId: id,
+  url: z.string().url(),
+  title: z.string(),
+  firstSeenAt: dateTime,
+  lastSeenAt: dateTime,
+  analysisCount: z.number().int().positive(),
+});
+export type SessionPage = z.infer<typeof sessionPageSchema>;
+
 export const elementSnapshotSchema = z.object({
   tagName: z.string().trim().min(1),
   visibleText: z.string(),

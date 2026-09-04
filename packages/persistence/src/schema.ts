@@ -37,6 +37,18 @@ export const sessions = sqliteTable("sessions", {
   findingsCount: integer("findings_count").notNull().default(0),
 });
 
+export const sessionPages = sqliteTable("session_pages", {
+  id: text("id").primaryKey(),
+  sessionId: text("session_id")
+    .notNull()
+    .references(() => sessions.id),
+  url: text("url").notNull(),
+  title: text("title").notNull(),
+  firstSeenAt: text("first_seen_at").notNull(),
+  lastSeenAt: text("last_seen_at").notNull(),
+  analysisCount: integer("analysis_count").notNull(),
+});
+
 export const findings = sqliteTable("findings", {
   id: text("id").primaryKey(),
   sessionId: text("session_id")

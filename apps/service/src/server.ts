@@ -58,6 +58,10 @@ const sessionInput = z.object({
   resolution: z.string().min(1),
   initialUrl: z.string().url(),
 });
+const sessionPageInput = z.object({
+  url: z.string().url(),
+  title: z.string(),
+});
 const evidenceInput = z.object({
   findingId: z.string().min(1),
   type: z.enum(["element-screenshot", "full-page-screenshot"]),
@@ -268,25 +272,33 @@ export async function createApp(
         ]
           .filter(Boolean)
           .join("\n");
-        return send(
-          response,
-          201,
-          await repositories.findings.save(
-            createFinding({
-              ...findingInput,
-              description,
-              ...(selector
-                ? {
-                    element: {
-                      tagName: elementTag ?? "unknown",
-                      visibleText: elementText ?? "",
-                      selector,
-                    },
-                  }
-                : {}),
-            }),
-          ),
-        );
+        const candidate = createFinding({
+          ...findingInput,
+          description,
+          ...(selector
+            ? {
+                element: {
+                  tagName: elementTag ?? "unknown",
+                  visibleText: elementText ?? "",
+                  selector,
+                },
+              }
+            : {}),
+        });
+        if (candidate.origin === "automatic" || candidate.origin === "rule") {
+          const duplicate = (
+            await repositories.findings.listBySession(candidate.sessionId)
+          ).find(
+            (existing) =>
+              existing.origin === candidate.origin &&
+              existing.ruleId === candidate.ruleId &&
+              existing.url === candidate.url &&
+              existing.element?.selector === candidate.element?.selector,
+          );
+          if (duplicate)
+            return send(response, 200, { finding: duplicate, duplicate: true });
+        }
+        return send(response, 201, await repositories.findings.save(candidate));
       }
       const findingMatch = url.pathname.match(/^\/findings\/([^/]+)$/);
       if (
@@ -390,6 +402,38 @@ export async function createApp(
           200,
           await repositories.sessions.update(closeSession(session)),
         );
+      }
+      const sessionPagesMatch = url.pathname.match(
+        /^\/sessions\/([^/]+)\/pages$/,
+      );
+      if (sessionPagesMatch) {
+        const sessionId = sessionPagesMatch[1];
+        if (!sessionId)
+          throw new ServiceError(400, "Invalid session id", "INVALID_ID");
+        if (!(await repositories.sessions.findById(sessionId)))
+          throw new ServiceError(404, "Session not found", "SESSION_NOT_FOUND");
+        if (request.method === "GET")
+          return send(
+            response,
+            200,
+            await repositories.sessionPages.listBySession(sessionId),
+          );
+        if (request.method === "POST") {
+          const input = sessionPageInput.parse(await body(request));
+          const now = new Date().toISOString();
+          return send(
+            response,
+            201,
+            await repositories.sessionPages.record({
+              id: createId(),
+              sessionId,
+              ...input,
+              firstSeenAt: now,
+              lastSeenAt: now,
+              analysisCount: 1,
+            }),
+          );
+        }
       }
       const findingsMatch = url.pathname.match(
         /^\/sessions\/([^/]+)\/findings$/,

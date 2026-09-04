@@ -43,6 +43,24 @@ describe("SQLite repositories", () => {
       reviewerNotes: "Usar terminología institucional.",
     });
     await repositories.sessions.save(session);
+    await repositories.sessionPages.record({
+      id: "page-1",
+      sessionId: session.id,
+      url: "https://example.test/registro",
+      title: "Registro",
+      firstSeenAt: "2026-01-01T00:00:00.000Z",
+      lastSeenAt: "2026-01-01T00:00:00.000Z",
+      analysisCount: 1,
+    });
+    await repositories.sessionPages.record({
+      id: "page-2",
+      sessionId: session.id,
+      url: "https://example.test/registro",
+      title: "Registro actualizado",
+      firstSeenAt: "2026-01-01T00:01:00.000Z",
+      lastSeenAt: "2026-01-01T00:01:00.000Z",
+      analysisCount: 1,
+    });
     await repositories.findings.save(finding);
 
     expect((await repositories.projects.findById(project.id))?.name).toBe(
@@ -55,6 +73,9 @@ describe("SQLite repositories", () => {
       (await repositories.projectContexts.findByProjectId(project.id))
         ?.preferredTerms.clickear,
     ).toBe("hacer clic");
+    expect(
+      (await repositories.sessionPages.listBySession(session.id))[0],
+    ).toMatchObject({ title: "Registro actualizado", analysisCount: 2 });
     expect((await repositories.findings.findById(finding.id))?.status).toBe(
       "candidate",
     );
