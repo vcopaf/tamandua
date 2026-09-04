@@ -1,43 +1,74 @@
 # Tamanduá
 
-Herramienta local de apoyo para control de calidad de aplicaciones web.
+Tamanduá es una herramienta local para revisar la calidad de aplicaciones web mientras navegas. Detecta posibles errores de ortografía, gramática y redacción, los reúne en una bandeja de revisión y permite confirmar, descartar, documentar y exportar hallazgos.
 
-## Estado
+Todo el procesamiento se ejecuta en tu equipo. Tamanduá no requiere cuentas, tokens ni servicios de pago.
 
-Versión `0.1.0`, MVP local-first demostrable.
+## Qué Hace
 
-## Requisitos
+- Inicia una revisión directamente desde la pestaña actual; no necesitas crear un proyecto ni escribir una URL antes de empezar.
+- Revisa texto visible para detectar ortografía, gramática y oportunidades de redacción.
+- Usa reglas locales y, opcionalmente, LanguageTool ejecutado en tu propia máquina.
+- Puede revisar mientras navegas mediante el modo de revisión continua.
+- Organiza resultados en una bandeja: pendiente, confirmado, no es bug, duplicado o resuelto.
+- Permite ignorar términos por proyecto o globalmente por idioma.
+- Captura, copia o descarga evidencia visual bajo demanda.
+- Descarga reportes JSON, Markdown y HTML con los hallazgos confirmados.
 
-- Node.js LTS
-- pnpm 9+
+## Inicio Rápido
+
+La instalación, los comandos y la carga de la extensión están explicados paso a paso en [INSTALL.md](INSTALL.md).
+
+Después de instalar:
+
+1. Inicia el servicio local de Tamanduá.
+2. Carga la extensión en Firefox o, alternativamente, Chromium.
+3. Abre la página que quieres revisar.
+4. Abre Tamanduá y pulsa **Iniciar revisión de esta página**.
+5. Pulsa **Iniciar revisión continua** o revisa una página manualmente.
+6. Decide qué candidatos son bugs y descarga el reporte al finalizar.
+
+## Componentes
+
+| Componente | Necesario | Función |
+| --- | --- | --- |
+| Node.js y pnpm | Sí | Ejecutar Tamanduá |
+| Servicio local | Sí | Guardar proyectos, revisiones, hallazgos y evidencias |
+| Extensión | Sí | Revisar las páginas abiertas en el navegador |
+| LanguageTool local | No | Añadir gramática y estilo avanzados en español |
+| CLI y Playwright | No | Automatización y escenarios de prueba |
+
+## Arquitectura Local
+
+```text
+Navegador + extensión
+        |
+        v
+Tamanduá local: http://127.0.0.1:4317
+        |
+        +-- SQLite y evidencias: ~/.tamandua/
+        |
+        +-- LanguageTool opcional: http://127.0.0.1:8081
+```
+
+El servicio de Tamanduá escucha solo en `127.0.0.1`. LanguageTool es opcional: sin él, las reglas locales siguen funcionando.
+
+## Documentación
+
+- [Instalación y primer uso](INSTALL.md)
+- [Uso avanzado](docs/usage.md)
+- [Seguridad y privacidad](docs/security.md)
+- [Arquitectura](docs/architecture/overview.md)
+- [Decisiones técnicas](docs/decisions/)
+- [Producto y roadmap](docs/product/)
 
 ## Desarrollo
 
 ```bash
-pnpm install
 pnpm lint
 pnpm typecheck
 pnpm test
 pnpm build
 ```
 
-Los commits usan Conventional Commits, por ejemplo `feat(core): add domain contracts`. El hook local `commit-msg` rechaza mensajes que no cumplan el formato.
-
-El alcance del MVP y las decisiones técnicas están documentados en `docs/`.
-
-## Servicio y CLI
-
-```bash
-pnpm --filter @tamandua/service build
-node apps/service/dist/index.js
-```
-
-El servicio escucha únicamente en `http://127.0.0.1:4317`. La CLI se construye con `pnpm --filter @tamandua/cli build` y permite `project create`, `project list`, `session start`, `session list`, `report generate` y `start`.
-
-La revisión de redacción usa reglas locales y puede integrar LanguageTool instalado en la misma máquina en `http://127.0.0.1:8081`. No requiere claves, cuentas ni servicios de pago; si no está disponible, Tamanduá conserva las comprobaciones locales.
-
-La extensión se construye con `pnpm --filter @tamandua/extension build` y se carga desde `extension/.output/chrome-mv3` en Chromium mediante `chrome://extensions`. `tamandua report generate <session-id>` produce `report.json`, `report.md` y `report.html`. Los escenarios YAML se ejecutan con `tamandua run --project <id> --scenario escenario.yml`.
-
-La guía reproducible de instalación y demo está en `docs/installation.md`; la revisión de seguridad está en `docs/security.md`.
-
-La guía completa de uso está en `docs/usage.md` y el historial de cambios en `CHANGELOG.md`.
+Los commits usan Conventional Commits. El hook local `commit-msg` valida el formato.

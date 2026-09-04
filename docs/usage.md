@@ -1,34 +1,6 @@
-# Guía De Uso
+# Uso Avanzado
 
-## Flujo básico
-
-1. Instalar dependencias con `mise install && pnpm install`.
-2. Iniciar el servicio con `node apps/service/dist/index.js`.
-3. Crear un proyecto:
-
-```bash
-node apps/cli/dist/index.js project create demo --url http://127.0.0.1:8080
-```
-
-4. Listar proyectos y copiar el identificador:
-
-```bash
-node apps/cli/dist/index.js project list
-```
-
-5. Iniciar una sesión:
-
-```bash
-node apps/cli/dist/index.js session start --project <project-id> --mode manual
-```
-
-6. Cargar `extension/.output/chrome-mv3` en Chromium.
-7. Analizar la pantalla y, desde la Bandeja de revisión, decidir qué resultados se confirman como bug, no son bug o son duplicados. Los resultados de inspección se registran explícitamente y no se duplican al repetir el análisis.
-8. Generar reportes:
-
-```bash
-node apps/cli/dist/index.js report generate <session-id>
-```
+Para instalar Tamanduá y realizar la primera revisión, sigue [INSTALL.md](../INSTALL.md). Esta guía describe las funciones disponibles después de iniciar una revisión.
 
 ## Revisión Desde La Pestaña
 
